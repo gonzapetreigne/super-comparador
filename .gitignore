@@ -8,3 +8,5 @@ scratch_*.html
 .DS_Store
 .vercel/
 
+
+.vercel
