@@ -3,16 +3,99 @@
  * https://www.mercadolibre.com.ar/supermercado
  */
 
+let meliTokenCache = { token: null, expiresAt: 0 };
+
+async function getMeliAccessToken() {
+  if (process.env.MELI_ACCESS_TOKEN) return process.env.MELI_ACCESS_TOKEN;
+  if (!process.env.MELI_CLIENT_ID || !process.env.MELI_CLIENT_SECRET) return null;
+
+  if (meliTokenCache.token && Date.now() < meliTokenCache.expiresAt) {
+    return meliTokenCache.token;
+  }
+
+  try {
+    const params = new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: process.env.MELI_CLIENT_ID,
+      client_secret: process.env.MELI_CLIENT_SECRET
+    });
+    const res = await fetch('https://api.mercadolibre.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString()
+    });
+    if (!res.ok) {
+      console.warn('[Mercado Libre OAuth] Error obteniendo token:', res.status);
+      return null;
+    }
+    const data = await res.json();
+    meliTokenCache = {
+      token: data.access_token,
+      expiresAt: Date.now() + ((data.expires_in || 21600) - 300) * 1000
+    };
+    return meliTokenCache.token;
+  } catch (err) {
+    console.error('[Mercado Libre OAuth] Fallo:', err.message);
+    return null;
+  }
+}
+
 export async function searchMercadoLibre(searchTerm) {
   try {
-    const url = `https://listado.mercadolibre.com.ar/alimentos-bebidas/${encodeURIComponent(searchTerm)}_Envio_Full`;
+    // 1. Try official authenticated API if credentials are provided
+    const token = await getMeliAccessToken();
+    if (token) {
+      try {
+        const apiUrl = `https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(searchTerm)}&category=MLA1403&limit=50`;
+        const apiRes = await fetch(apiUrl, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (apiRes.ok) {
+          const apiData = await apiRes.json();
+          const items = apiData.results || [];
+          const apiProducts = items.map(item => {
+            const brandAttr = (item.attributes || []).find(a => a.id === 'BRAND');
+            const isFull = item.shipping?.logistic_type === 'fulfillment';
+            return {
+              id: `meli_${item.id}`,
+              store: 'Mercado Libre',
+              storeId: 'mercadolibre',
+              branch: 'Full Súper ⚡',
+              title: item.title,
+              brand: brandAttr ? brandAttr.value_name.toUpperCase() : '',
+              price: item.price,
+              originalPrice: item.original_price || null,
+              discountPercent: item.original_price && item.original_price > item.price
+                ? Math.round(((item.original_price - item.price) / item.original_price) * 100)
+                : null,
+              promotionText: isFull ? 'Envío Full ⚡' : 'Mercado Libre',
+              ean: null,
+              image: item.thumbnail ? item.thumbnail.replace('http://', 'https://') : '',
+              available: true,
+              isFull: isFull,
+              url: item.permalink
+            };
+          });
+          if (apiProducts.length > 0) return apiProducts;
+        }
+      } catch (apiErr) {
+        console.warn('[Mercado Libre API] Error al consultar API, intentando scraping:', apiErr.message);
+      }
+    }
 
-    const response = await fetch(url, {
+    // 2. Fallback to HTML Scraping (residential local or proxy)
+    let targetUrl = `https://listado.mercadolibre.com.ar/alimentos-bebidas/${encodeURIComponent(searchTerm)}_Envio_Full`;
+    if (process.env.SCRAPER_API_KEY) {
+      targetUrl = `https://api.scraperapi.com?api_key=${process.env.SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&country_code=ar`;
+    }
+
+    const response = await fetch(targetUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
         'Accept-Language': 'es-AR,es;q=0.9'
       },
+      redirect: 'follow',
       signal: AbortSignal.timeout(9000)
     });
 
@@ -21,7 +104,16 @@ export async function searchMercadoLibre(searchTerm) {
       return [];
     }
 
+    const finalUrl = response.url || '';
     const html = await response.text();
+
+    // Detect Akamai bot checkpoint redirection
+    if (finalUrl.includes('account-verification') || html.includes('account-verification') || html.includes('px-captcha')) {
+      console.warn('[Mercado Libre] Solicitud redirigida a verificación de cuenta / anti-bot (IP de datacenter en nube).');
+      const emptyBlocked = [];
+      emptyBlocked.blockedByBot = true;
+      return emptyBlocked;
+    }
 
     // Extract individual product items from the search layout
     const itemRegex = /<li[^>]*class="[^"]*ui-search-layout__item[^"]*"[\s\S]*?<\/li>/gi;

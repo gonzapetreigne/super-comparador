@@ -212,6 +212,21 @@
             <div id="countMeli" class="text-xs font-black text-amber-800 mt-0.5">0</div>
           </div>
         </div>
+
+        <!-- Aviso inteligente cuando Mercado Libre está bloqueado por firewall en nube -->
+        <div id="meliCloudNotice" class="hidden mt-2.5 p-2.5 bg-amber-50 border border-amber-200/80 rounded-xl text-xs text-amber-900 flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="text-base shrink-0">🛡️</span>
+            <div class="min-w-0">
+              <p class="font-bold text-[11px] leading-tight">Mercado Libre protegió sus precios en la nube</p>
+              <p class="text-[10px] text-amber-700 leading-tight truncate">En Vercel se activa su firewall anti-bot. Puedes abrir la búsqueda directa:</p>
+            </div>
+          </div>
+          <a id="meliDirectLink" href="#" target="_blank" rel="noopener noreferrer" class="shrink-0 bg-amber-400 hover:bg-amber-500 active:scale-95 text-amber-950 font-bold px-2.5 py-1.5 rounded-lg text-[11px] shadow-sm transition inline-flex items-center gap-1">
+            <span>Abrir Meli</span>
+            <span class="text-[9px]">↗</span>
+          </a>
+        </div>
       </div>
 
       <!-- Estado Inicial / Instrucciones -->

@@ -59,6 +59,8 @@ app.get('/api/search', async (req, res) => {
     const matchedResult = matchProducts(golopolisProds, actualProds, diaProds, meliProds, query);
     const elapsedMs = Date.now() - startTime;
 
+    const meliBlocked = meliProds.blockedByBot === true;
+
     const responseData = {
       query: query,
       elapsedMs: elapsedMs,
@@ -69,7 +71,12 @@ app.get('/api/search', async (req, res) => {
         golopolis: { name: 'Golópolis', branch: 'Las Flores', count: golopolisProds.length },
         actual: { name: 'Actual', branch: 'Las Flores', count: actualProds.length },
         dia: { name: 'Día%', branch: 'Día Online', count: diaProds.length },
-        mercadolibre: { name: 'Mercado Libre', branch: 'Full Súper ⚡', count: meliProds.length }
+        mercadolibre: {
+          name: 'Mercado Libre',
+          branch: 'Full Súper ⚡',
+          count: meliProds.length,
+          blockedByBot: meliBlocked
+        }
       },
       timestamp: new Date().toISOString()
     };

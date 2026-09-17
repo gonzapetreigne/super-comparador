@@ -222,7 +222,26 @@ async function performSearch(query) {
     document.getElementById('countGolo').textContent = data.counts?.golopolis || 0;
     document.getElementById('countActual').textContent = data.counts?.actual || 0;
     document.getElementById('countDia').textContent = data.counts?.dia || 0;
-    document.getElementById('countMeli').textContent = data.counts?.mercadolibre || 0;
+
+    const meliStoreInfo = data.stores?.mercadolibre;
+    const countMeliEl = document.getElementById('countMeli');
+    const meliNotice = document.getElementById('meliCloudNotice');
+
+    if (meliStoreInfo?.blockedByBot) {
+      countMeliEl.innerHTML = '<span class="text-amber-600 font-bold" title="Bloqueado por firewall en la nube">0 ⚠️</span>';
+      if (meliNotice) {
+        meliNotice.classList.remove('hidden');
+        const meliDirectLink = document.getElementById('meliDirectLink');
+        if (meliDirectLink) {
+          meliDirectLink.href = `https://listado.mercadolibre.com.ar/alimentos-bebidas/${encodeURIComponent(query)}_Envio_Full`;
+        }
+      }
+    } else {
+      countMeliEl.textContent = data.counts?.mercadolibre || 0;
+      if (meliNotice) {
+        meliNotice.classList.add('hidden');
+      }
+    }
 
     if (state.currentResults.length === 0) {
       noResultsState.classList.remove('hidden');
