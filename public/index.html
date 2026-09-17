@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Súper Comparador | Las Flores</title>
+  <meta name="description" content="Comparador de precios en vivo en Las Flores: Golópolis, Actual, Día% y Mercado Libre Full">
+  
+  <!-- PWA & Mobile Meta -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#059669">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Comparador">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <link rel="apple-touch-icon" href="/icon.svg">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+              900: '#064e3b'
+            },
+            golo: '#ea580c',
+            actual: '#0284c7',
+            dia: '#dc2626',
+            meli: '#eab308'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Smooth iOS momentum scroll */
+    body {
+      -webkit-tap-highlight-color: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+    .hide-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .hide-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    @keyframes pulse-slow {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .animate-pulse-slow {
+      animation: pulse-slow 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen pb-24 select-none">
+
+  <!-- Header Fijo Superior -->
+  <header class="sticky top-0 z-40 bg-brand-600 text-white shadow-md">
+    <div class="max-w-3xl mx-auto px-4 py-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-9 h-9 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center text-xl shadow-inner">
+            🛒
+          </div>
+          <div>
+            <h1 class="text-lg font-black tracking-tight leading-tight flex items-center gap-1.5">
+              Súper Comparador
+              <span class="text-[10px] bg-emerald-400 text-emerald-950 font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider">Las Flores</span>
+            </h1>
+            <p class="text-xs text-emerald-100 font-medium">Golópolis • Actual • Día% • Mercado Libre Full</p>
+          </div>
+        </div>
+        
+        <!-- Live Status Pill -->
+        <div id="liveBadge" class="flex items-center space-x-1.5 bg-white/20 backdrop-blur-sm text-xs font-semibold px-2.5 py-1 rounded-full text-emerald-50">
+          <span class="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span>
+          <span class="text-[11px]">En Vivo</span>
+        </div>
+      </div>
+
+      <!-- Barra de Búsqueda -->
+      <div class="mt-3 relative">
+        <form id="searchForm" class="flex items-center gap-2">
+          <div class="relative flex-1">
+            <input
+              type="search"
+              id="searchInput"
+              placeholder="Buscar ej: leche, fideos, yerba, aceite..."
+              autocomplete="off"
+              class="w-full pl-10 pr-9 py-2.5 bg-white text-slate-800 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-400 shadow-sm placeholder:text-slate-400"
+            />
+            <!-- Search Icon -->
+            <svg class="w-5 h-5 text-slate-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <!-- Clear Input Button -->
+            <button type="button" id="clearSearchBtn" class="hidden absolute right-3 top-2.5 text-slate-400 hover:text-slate-600">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+          <button
+            type="submit"
+            id="searchSubmitBtn"
+            class="bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-900 font-bold px-4 py-2.5 rounded-xl text-sm shadow transition-all flex items-center gap-1.5 shrink-0"
+          >
+            <span>Buscar</span>
+          </button>
+        </form>
+      </div>
+
+      <!-- Chips de Búsqueda Rápida -->
+      <div class="flex items-center gap-1.5 overflow-x-auto hide-scrollbar pt-2.5 pb-1 text-xs">
+        <span class="text-emerald-200 text-[11px] font-semibold shrink-0">Populares:</span>
+        <button class="quick-chip bg-white/15 hover:bg-white/25 active:scale-95 px-2.5 py-1 rounded-lg text-emerald-50 shrink-0 font-medium transition" data-term="leche">Leche</button>
+        <button class="quick-chip bg-white/15 hover:bg-white/25 active:scale-95 px-2.5 py-1 rounded-lg text-emerald-50 shrink-0 font-medium transition" data-term="fideos">Fideos</button>
+        <button class="quick-chip bg-white/15 hover:bg-white/25 active:scale-95 px-2.5 py-1 rounded-lg text-emerald-50 shrink-0 font-medium transition" data-term="yerba">Yerba</button>
+        <button class="quick-chip bg-white/15 hover:bg-white/25 active:scale-95 px-2.5 py-1 rounded-lg text-emerald-50 shrink-0 font-medium transition" data-term="aceite">Aceite</button>
+        <button class="quick-chip bg-white/15 hover:bg-white/25 active:scale-95 px-2.5 py-1 rounded-lg text-emerald-50 shrink-0 font-medium transition" data-term="arroz">Arroz</button>
+        <button class="quick-chip bg-white/15 hover:bg-white/25 active:scale-95 px-2.5 py-1 rounded-lg text-emerald-50 shrink-0 font-medium transition" data-term="azucar">Azúcar</button>
+        <button class="quick-chip bg-white/15 hover:bg-white/25 active:scale-95 px-2.5 py-1 rounded-lg text-emerald-50 shrink-0 font-medium transition" data-term="galletitas">Galletitas</button>
+        <button class="quick-chip bg-white/15 hover:bg-white/25 active:scale-95 px-2.5 py-1 rounded-lg text-emerald-50 shrink-0 font-medium transition" data-term="coca cola">Coca Cola</button>
+        <button class="quick-chip bg-white/15 hover:bg-white/25 active:scale-95 px-2.5 py-1 rounded-lg text-emerald-50 shrink-0 font-medium transition" data-term="lavandina">Lavandina</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Simulador de Promociones y Descuentos -->
+  <div class="bg-white border-b border-slate-200 shadow-sm">
+    <div class="max-w-3xl mx-auto px-4 py-2 flex items-center justify-between gap-3 text-xs overflow-x-auto hide-scrollbar">
+      <div class="flex items-center space-x-2 shrink-0">
+        <span class="font-bold text-slate-700 flex items-center gap-1">
+          <span>💳</span> Promos:
+        </span>
+      </div>
+
+      <!-- Cuenta DNI Switch -->
+      <label class="flex items-center gap-2 cursor-pointer bg-slate-50 hover:bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 shrink-0 transition">
+        <input type="checkbox" id="toggleDNI" class="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 cursor-pointer">
+        <div class="flex flex-col">
+          <span class="font-bold text-slate-800 leading-none">Cuenta DNI</span>
+          <span class="text-[10px] text-emerald-600 font-semibold">-20% reintegro</span>
+        </div>
+      </label>
+
+      <!-- Club Día Switch -->
+      <label class="flex items-center gap-2 cursor-pointer bg-slate-50 hover:bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 shrink-0 transition">
+        <input type="checkbox" id="toggleClubDia" class="w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer">
+        <div class="flex flex-col">
+          <span class="font-bold text-slate-800 leading-none">Club Día%</span>
+          <span class="text-[10px] text-red-600 font-semibold">Ofertas exclusivas</span>
+        </div>
+      </label>
+
+      <!-- Meli Full Envío Gratis Switch -->
+      <label class="flex items-center gap-2 cursor-pointer bg-slate-50 hover:bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 shrink-0 transition">
+        <input type="checkbox" id="toggleMeliFull" checked class="w-4 h-4 rounded text-amber-500 focus:ring-amber-400 cursor-pointer">
+        <div class="flex flex-col">
+          <span class="font-bold text-slate-800 leading-none">Meli Full</span>
+          <span class="text-[10px] text-amber-600 font-semibold">Despacho ⚡</span>
+        </div>
+      </label>
+    </div>
+  </div>
+
+  <!-- Contenedor Principal de Vistas -->
+  <main class="max-w-3xl mx-auto px-3 sm:px-4 py-4">
+
+    <!-- TAB 1: BUSCADOR Y RESULTADOS -->
+    <section id="viewSearch" class="tab-view">
+
+      <!-- Barra de Resumen de Tiendas Consultadas -->
+      <div id="searchStatsBar" class="hidden mb-4 bg-white rounded-2xl p-3 border border-slate-200 shadow-sm">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
+          <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+            <span id="totalCardsCount" class="bg-brand-100 text-brand-700 font-black px-2 py-0.5 rounded-full text-xs">0</span>
+            productos encontrados para "<span id="queryLabel" class="text-brand-600 font-extrabold"></span>"
+          </span>
+          <span id="elapsedTimeBadge" class="text-[11px] text-slate-400"></span>
+        </div>
+        
+        <!-- Indicadores por tienda -->
+        <div class="grid grid-cols-4 gap-2 text-center text-xs">
+          <div class="bg-orange-50 border border-orange-200/60 rounded-xl p-1.5">
+            <div class="font-black text-orange-700 text-xs">Golópolis</div>
+            <div class="text-[11px] text-orange-600/90 font-medium">Las Flores</div>
+            <div id="countGolo" class="text-xs font-black text-orange-800 mt-0.5">0</div>
+          </div>
+          <div class="bg-sky-50 border border-sky-200/60 rounded-xl p-1.5">
+            <div class="font-black text-sky-700 text-xs">Actual</div>
+            <div class="text-[11px] text-sky-600/90 font-medium">Las Flores</div>
+            <div id="countActual" class="text-xs font-black text-sky-800 mt-0.5">0</div>
+          </div>
+          <div class="bg-red-50 border border-red-200/60 rounded-xl p-1.5">
+            <div class="font-black text-red-700 text-xs">Día%</div>
+            <div class="text-[11px] text-red-600/90 font-medium">Online</div>
+            <div id="countDia" class="text-xs font-black text-red-800 mt-0.5">0</div>
+          </div>
+          <div class="bg-amber-50 border border-amber-200/60 rounded-xl p-1.5">
+            <div class="font-black text-amber-700 text-xs">M. Libre</div>
+            <div class="text-[11px] text-amber-600/90 font-medium">Full ⚡</div>
+            <div id="countMeli" class="text-xs font-black text-amber-800 mt-0.5">0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Estado Inicial / Instrucciones -->
+      <div id="emptyState" class="text-center py-10 px-4">
+        <div class="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-3xl mx-auto flex items-center justify-center text-4xl shadow-sm mb-4">
+          🔍
+        </div>
+        <h2 class="text-lg font-black text-slate-800">Compara precios al instante</h2>
+        <p class="text-sm text-slate-500 max-w-sm mx-auto mt-1 mb-6">
+          Escribe un producto arriba o toca uno de los botones rápidos para ver los precios en <strong class="text-slate-700">Golópolis, Actual, Día% y Mercado Libre Full</strong>.
+        </p>
+
+        <!-- Tarjetas de Características -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-left max-w-xl mx-auto">
+          <div class="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-sm flex items-start gap-3">
+            <div class="text-2xl">⚡</div>
+            <div>
+              <h3 class="font-bold text-xs text-slate-800">Precios en Vivo</h3>
+              <p class="text-[11px] text-slate-500">Consulta los precios actualizados de hoy directamente de cada sucursal.</p>
+            </div>
+          </div>
+          <div class="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-sm flex items-start gap-3">
+            <div class="text-2xl">🏆</div>
+            <div>
+              <h3 class="font-bold text-xs text-slate-800">Ahorro Inteligente</h3>
+              <p class="text-[11px] text-slate-500">Te resalta en verde el más barato y te calcula cuánto ahorras.</p>
+            </div>
+          </div>
+          <div class="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-sm flex items-start gap-3">
+            <div class="text-2xl">🧺</div>
+            <div>
+              <h3 class="font-bold text-xs text-slate-800">Canasta Dividida</h3>
+              <p class="text-[11px] text-slate-500">Arma tu lista y descubre qué comprar en cada tienda para pagar el mínimo.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Estado de Carga (Spinner) -->
+      <div id="loadingState" class="hidden py-16 text-center">
+        <div class="inline-block animate-spin w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full mb-3"></div>
+        <h3 class="text-base font-bold text-slate-700">Consultando supermercados...</h3>
+        <p class="text-xs text-slate-400 mt-1">Buscando en Golópolis, Actual, Día% y Mercado Libre</p>
+      </div>
+
+      <!-- Lista de Tarjetas de Comparación -->
+      <div id="resultsContainer" class="space-y-3.5"></div>
+
+      <!-- Sin Resultados -->
+      <div id="noResultsState" class="hidden text-center py-12 px-4 bg-white rounded-2xl border border-slate-200 my-4">
+        <div class="text-4xl mb-2">😕</div>
+        <h3 class="text-base font-bold text-slate-800">No encontramos productos con ese término</h3>
+        <p class="text-xs text-slate-500 max-w-xs mx-auto mt-1">Intenta con una palabra más general (ej: "leche" en lugar de marcas específicas largas).</p>
+      </div>
+    </section>
+
+    <!-- TAB 2: CARRITO / CANASTA COMPARATIVA -->
+    <section id="viewCart" class="tab-view hidden">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
+            <span>🛒</span> Canasta de Compras
+          </h2>
+          <p class="text-xs text-slate-500">Calcula y compara el total entre todas las opciones</p>
+        </div>
+        <button id="clearCartBtn" class="text-xs text-red-600 hover:text-red-700 font-bold bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg border border-red-200 transition">
+          Vaciar Canasta
+        </button>
+      </div>
+
+      <!-- Carrito Vacío -->
+      <div id="cartEmptyState" class="text-center py-12 px-4 bg-white rounded-2xl border border-slate-200">
+        <div class="w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center text-3xl mx-auto mb-3">
+          🛒
+        </div>
+        <h3 class="font-bold text-slate-700 text-base">Tu canasta está vacía</h3>
+        <p class="text-xs text-slate-500 max-w-xs mx-auto mt-1 mb-4">
+          Busca productos y toca el botón <strong>+ Agregar</strong> para ver la comparativa de costo total.
+        </p>
+        <button onclick="switchTab('search')" class="bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow">
+          Ir al Buscador
+        </button>
+      </div>
+
+      <!-- Contenido de la Canasta -->
+      <div id="cartFilledContent" class="hidden space-y-4">
+        
+        <!-- RESUMEN DE AHORRO DIVIDIDO (HERO CARD) -->
+        <div id="smartSplitCard" class="bg-gradient-to-br from-emerald-600 to-teal-800 text-white rounded-2xl p-4 shadow-lg">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-extrabold uppercase tracking-wider bg-white/20 text-emerald-100 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+              <span>🏆</span> Ahorro Dividido Óptimo
+            </span>
+            <span class="text-[11px] text-emerald-200">Comprando lo más barato en cada lugar</span>
+          </div>
+
+          <div class="flex items-baseline justify-between mt-2">
+            <div>
+              <span class="text-xs text-emerald-200 font-medium">Total Óptimo a Pagar:</span>
+              <div id="splitOptimalTotal" class="text-3xl font-black tracking-tight text-white">$0</div>
+            </div>
+            <div class="text-right">
+              <span class="text-xs text-amber-200 font-medium">¡Te ahorras!:</span>
+              <div id="splitSavingsTotal" class="text-2xl font-black text-amber-300">$0</div>
+            </div>
+          </div>
+
+          <!-- Desglose por tienda -->
+          <div class="mt-3 pt-3 border-t border-white/20 grid grid-cols-2 gap-2 text-xs">
+            <div class="bg-white/10 rounded-xl p-2">
+              <div class="font-bold text-orange-200">Golópolis:</div>
+              <div id="splitGoloSummary" class="text-[11px] text-slate-100 font-medium">0 items ($0)</div>
+            </div>
+            <div class="bg-white/10 rounded-xl p-2">
+              <div class="font-bold text-sky-200">Actual:</div>
+              <div id="splitActualSummary" class="text-[11px] text-slate-100 font-medium">0 items ($0)</div>
+            </div>
+            <div class="bg-white/10 rounded-xl p-2">
+              <div class="font-bold text-red-200">Día%:</div>
+              <div id="splitDiaSummary" class="text-[11px] text-slate-100 font-medium">0 items ($0)</div>
+            </div>
+            <div class="bg-white/10 rounded-xl p-2">
+              <div class="font-bold text-yellow-200">Mercado Libre Full:</div>
+              <div id="splitMeliSummary" class="text-[11px] text-slate-100 font-medium">0 items ($0)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TOTAL SI COMPRAS TODO EN UN SOLO LUGAR -->
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+          <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5">
+            Total si compras todo en un solo súper:
+          </h3>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+            <div class="p-2.5 rounded-xl border border-orange-200 bg-orange-50/50">
+              <div class="font-bold text-orange-700">Golópolis</div>
+              <div id="totalGoloWhole" class="text-base font-black text-slate-900 mt-1">$0</div>
+              <div id="coverageGolo" class="text-[10px] text-slate-500">0/0 items</div>
+            </div>
+            <div class="p-2.5 rounded-xl border border-sky-200 bg-sky-50/50">
+              <div class="font-bold text-sky-700">Actual</div>
+              <div id="totalActualWhole" class="text-base font-black text-slate-900 mt-1">$0</div>
+              <div id="coverageActual" class="text-[10px] text-slate-500">0/0 items</div>
+            </div>
+            <div class="p-2.5 rounded-xl border border-red-200 bg-red-50/50">
+              <div class="font-bold text-red-700">Día%</div>
+              <div id="totalDiaWhole" class="text-base font-black text-slate-900 mt-1">$0</div>
+              <div id="coverageDia" class="text-[10px] text-slate-500">0/0 items</div>
+            </div>
+            <div class="p-2.5 rounded-xl border border-amber-200 bg-amber-50/50">
+              <div class="font-bold text-amber-700">Mercado Libre</div>
+              <div id="totalMeliWhole" class="text-base font-black text-slate-900 mt-1">$0</div>
+              <div id="coverageMeli" class="text-[10px] text-slate-500">0/0 items</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- LISTA DE PRODUCTOS AGREGADOS -->
+        <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+          <div class="px-4 py-3 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+            <h3 class="font-bold text-slate-800 text-xs uppercase tracking-wider">Productos en la lista</h3>
+            <span id="cartItemsBadge" class="text-xs font-semibold text-slate-500">0 productos</span>
+          </div>
+          <div id="cartItemsList" class="divide-y divide-slate-100"></div>
+        </div>
+
+        <!-- ACCIONES DE LA LISTA -->
+        <div class="flex flex-col sm:flex-row gap-2 pt-1">
+          <button id="saveListModalBtn" class="flex-1 bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-bold text-xs py-3 rounded-xl shadow flex items-center justify-center gap-2 transition">
+            <span>💾</span> Guardar como Nueva Lista
+          </button>
+          <button id="shareWhatsAppBtn" class="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs px-5 py-3 rounded-xl shadow flex items-center justify-center gap-2 transition">
+            <span>📲</span> Enviar por WhatsApp
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- TAB 3: LISTAS GUARDADAS -->
+    <section id="viewLists" class="tab-view hidden">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
+            <span>📋</span> Mis Listas Guardadas
+          </h2>
+          <p class="text-xs text-slate-500">Guarda listas recurrentes (Compra del mes, asado, etc.)</p>
+        </div>
+      </div>
+
+      <div id="savedListsContainer" class="space-y-3"></div>
+
+      <div id="noSavedLists" class="text-center py-12 px-4 bg-white rounded-2xl border border-slate-200">
+        <div class="text-3xl mb-2">📁</div>
+        <h3 class="font-bold text-slate-700 text-sm">Aún no tienes listas guardadas</h3>
+        <p class="text-xs text-slate-500 max-w-xs mx-auto mt-1 mb-3">
+          Agrega productos en la canasta y presiona <strong>Guardar como Nueva Lista</strong>.
+        </p>
+        <button onclick="switchTab('cart')" class="bg-brand-600 text-white font-bold text-xs px-4 py-2 rounded-xl">
+          Ver Canasta
+        </button>
+      </div>
+    </section>
+
+    <!-- TAB 4: CONFIGURACIÓN E INFORMACIÓN -->
+    <section id="viewSettings" class="tab-view hidden space-y-4">
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+        <h2 class="text-base font-black text-slate-900 mb-2 flex items-center gap-2">
+          <span>⚙️</span> Tiendas y Sucursales Configuradas
+        </h2>
+        <p class="text-xs text-slate-500 mb-4 leading-relaxed">
+          Esta aplicación compara en tiempo real con las sucursales correspondientes a la ciudad de <strong>Las Flores, Buenos Aires</strong>:
+        </p>
+
+        <div class="space-y-2.5 text-xs">
+          <a href="https://golopolis.com.ar/app/?action=shop" target="_blank" class="flex items-center justify-between p-2.5 rounded-xl border border-orange-200 bg-orange-50 hover:bg-orange-100/70 transition">
+            <div>
+              <div class="font-bold text-orange-900">Golópolis (Sucursal Las Flores)</div>
+              <div class="text-[11px] text-orange-700 font-medium">Sucursal ID: 227 • golopolis.com.ar</div>
+            </div>
+            <span class="text-xs text-orange-600 font-bold">Abrir web ↗</span>
+          </a>
+
+          <a href="https://actualonline.com.ar/inicio" target="_blank" class="flex items-center justify-between p-2.5 rounded-xl border border-sky-200 bg-sky-50 hover:bg-sky-100/70 transition">
+            <div>
+              <div class="font-bold text-sky-900">Actual Supermercados (Las Flores)</div>
+              <div class="text-[11px] text-sky-700 font-medium">Sucursal ID: 10 (Av. Rivadavia 513) • actualonline.com.ar</div>
+            </div>
+            <span class="text-xs text-sky-600 font-bold">Abrir web ↗</span>
+          </a>
+
+          <a href="https://diaonline.supermercadosdia.com.ar/" target="_blank" class="flex items-center justify-between p-2.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100/70 transition">
+            <div>
+              <div class="font-bold text-red-900">Supermercado Día%</div>
+              <div class="text-[11px] text-red-700 font-medium">Catálogo Digital Oficial • diaonline.com.ar</div>
+            </div>
+            <span class="text-xs text-red-600 font-bold">Abrir web ↗</span>
+          </a>
+
+          <a href="https://www.mercadolibre.com.ar/supermercado" target="_blank" class="flex items-center justify-between p-2.5 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100/70 transition">
+            <div>
+              <div class="font-bold text-amber-900">Mercado Libre (Full Super ⚡)</div>
+              <div class="text-[11px] text-amber-700 font-medium">Envíos Full Directos a Las Flores • mercadolibre.com.ar</div>
+            </div>
+            <span class="text-xs text-amber-600 font-bold">Abrir web ↗</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Instalación PWA en Celular -->
+      <div class="bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-2xl p-4 shadow-sm">
+        <h3 class="font-black text-sm mb-1 flex items-center gap-1.5">
+          <span>📲</span> Instalar como App en tu Celular
+        </h3>
+        <p class="text-xs text-emerald-50 mb-3 leading-relaxed">
+          Puedes agregar esta aplicación a tu pantalla de inicio para abrirla como cualquier app normal:
+        </p>
+        <ul class="text-[11px] space-y-1.5 text-emerald-100 list-disc list-inside">
+          <li><strong>En Android (Chrome):</strong> Toca los tres puntos arriba a la derecha y selecciona <em>"Agregar a la pantalla principal"</em> o <em>"Instalar aplicación"</em>.</li>
+          <li><strong>En iPhone (Safari):</strong> Toca el botón de Compartir abajo (el cuadrito con la flecha) y selecciona <em>"Agregar al inicio"</em>.</li>
+        </ul>
+      </div>
+
+      <div class="text-center py-2 text-[11px] text-slate-400">
+        Súper Comparador Las Flores • v1.1.0
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODAL: GUARDAR LISTA CON NOMBRE -->
+  <div id="saveListModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
+      <h3 class="text-base font-black text-slate-900 mb-1">Guardar Lista de Compras</h3>
+      <p class="text-xs text-slate-500 mb-3">Asigna un nombre a esta lista para recordarla:</p>
+      <input
+        type="text"
+        id="listNameInput"
+        placeholder="Ej: Compra mensual, Asado, Limpieza..."
+        class="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 mb-4"
+      />
+      <div class="flex gap-2">
+        <button id="cancelSaveListBtn" class="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl">
+          Cancelar
+        </button>
+        <button id="confirmSaveListBtn" class="flex-1 px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl shadow">
+          Guardar Lista
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Barra Fija Inferior (Navegación Móvil Táctil) -->
+  <nav class="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-lg">
+    <div class="max-w-3xl mx-auto flex items-center justify-around py-2">
+      
+      <!-- Tab 1: Buscador -->
+      <button onclick="switchTab('search')" id="tabBtnSearch" class="flex flex-col items-center gap-0.5 text-brand-600 transition active:scale-90">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+        <span class="text-[10px] font-bold">Buscador</span>
+      </button>
+
+      <!-- Tab 2: Carrito / Canasta -->
+      <button onclick="switchTab('cart')" id="tabBtnCart" class="relative flex flex-col items-center gap-0.5 text-slate-400 transition active:scale-90">
+        <div class="relative">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
+          </svg>
+          <span id="navCartBadge" class="hidden absolute -top-1.5 -right-2 bg-emerald-600 text-white font-black text-[9px] w-4 h-4 rounded-full flex items-center justify-center">0</span>
+        </div>
+        <span class="text-[10px] font-bold">Canasta</span>
+      </button>
+
+      <!-- Tab 3: Listas Guardadas -->
+      <button onclick="switchTab('lists')" id="tabBtnLists" class="flex flex-col items-center gap-0.5 text-slate-400 transition active:scale-90">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+        </svg>
+        <span class="text-[10px] font-bold">Mis Listas</span>
+      </button>
+
+      <!-- Tab 4: Sucursales / Info -->
+      <button onclick="switchTab('settings')" id="tabBtnSettings" class="flex flex-col items-center gap-0.5 text-slate-400 transition active:scale-90">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+        </svg>
+        <span class="text-[10px] font-bold">Tiendas</span>
+      </button>
+
+    </div>
+  </nav>
+
+  <!-- App Script -->
+  <script src="/app.js"></script>
+  <script>
+    // Register PWA service worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(reg => console.log('SW registrado exitosamente'))
+          .catch(err => console.log('Fallo registro SW:', err));
+      });
+    }
+  </script>
+</body>
+</html>

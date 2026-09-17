@@ -1,0 +1,10 @@
+node_modules/
+.env
+*.log
+scratch/
+scratch_*.js
+scratch_*.py
+scratch_*.html
+.DS_Store
+.vercel/
+

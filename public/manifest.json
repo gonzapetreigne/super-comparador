@@ -1,0 +1,18 @@
+{
+  "name": "Súper Comparador Las Flores",
+  "short_name": "SúperComparador",
+  "description": "Comparador de precios en vivo: Golópolis, Actual, Día% y Mercado Libre Full en Las Flores",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#10b981",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

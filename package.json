@@ -1,0 +1,16 @@
+{
+  "name": "comparador-supermercados-las-flores",
+  "version": "1.0.0",
+  "description": "Comparador de precios en tiempo real para supermercados de Las Flores (Golópolis, Actual y Día%)",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}
