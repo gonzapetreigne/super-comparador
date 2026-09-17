@@ -70,12 +70,18 @@ export async function searchGolopolis(searchTerm) {
 
       const ean = (p.ean && p.ean !== '0' && p.ean.length >= 7) ? String(p.ean).trim() : null;
 
+      let title = (p.name || '').trim();
+      const itemStr = (p.item || '').trim();
+      if (itemStr && !title.toLowerCase().includes(itemStr.toLowerCase()) && itemStr.toLowerCase() !== 'varios') {
+        title = `${itemStr} ${title}`;
+      }
+
       return {
         id: `golo_${p.id || p.foreign_id}`,
         store: 'Golópolis',
         storeId: 'golopolis',
         branch: 'Las Flores',
-        title: (p.name || '').trim(),
+        title: title,
         brand: (p.brand || '').trim(),
         price: Math.round(price * 100) / 100,
         originalPrice: originalPrice ? Math.round(originalPrice * 100) / 100 : null,

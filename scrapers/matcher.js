@@ -11,29 +11,62 @@ function cleanString(str) {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '') // remove accents
+    .replace(/(\d+)([a-zA-Z]+)/g, '$1 $2') // split 1kg -> 1 kg, 500g -> 500 g
+    .replace(/([a-zA-Z]+)(\d+)/g, '$1 $2')
     .replace(/[^a-z0-9\s]/g, ' ')    // remove punctuation
     .replace(/\s+/g, ' ')            // normalize whitespace
     .trim();
 }
 
-// Extract measure/quantity from product title (e.g. "1kg", "900 ml", "1.5 l", "500gr")
+function isKitOrCombo(title) {
+  const str = cleanString(title);
+  return str.includes('kit') || str.includes('combo') || str.includes('bombilla') || str.includes('lata yerbera') || str.includes('termo');
+}
+
+// Extract measure/quantity from product title (e.g. "1kg", "900 ml", "1.5 l", "500gr", "pack x 10")
 function extractQuantity(title) {
   if (!title) return null;
   const str = title.toLowerCase().replace(/,/g, '.');
 
+  // Check for pack multiplier, e.g. "pack de 10", "pack x 5", "x 10 u", "x5 unidades"
+  let multiplier = 1;
+  const packMatch = str.match(/(?:pack\s*(?:de|x)?\s*(\d+)|(?:x|\*)\s*(\d+)\s*(?:u|unid|unidades|paq))/i);
+  if (packMatch) {
+    multiplier = parseInt(packMatch[1] || packMatch[2], 10) || 1;
+  }
+
   // Match liters (e.g. 1.5l, 1l, 500ml, 750 cc)
   const mlMatch = str.match(/(\d+(?:\.\d+)?)\s*(?:ml|cc)/);
-  if (mlMatch) return { value: parseFloat(mlMatch[1]), unit: 'ml', standardUnit: 'l', standardRatio: parseFloat(mlMatch[1]) / 1000 };
+  if (mlMatch) {
+    const val = parseFloat(mlMatch[1]) * multiplier;
+    return { value: val, unit: 'ml', standardUnit: 'l', standardRatio: val / 1000, isPack: multiplier > 1, multiplier };
+  }
 
   const lMatch = str.match(/(\d+(?:\.\d+)?)\s*(?:l|lt|litro|litros)/);
-  if (lMatch) return { value: parseFloat(lMatch[1]), unit: 'l', standardUnit: 'l', standardRatio: parseFloat(lMatch[1]) };
+  if (lMatch) {
+    const val = parseFloat(lMatch[1]) * multiplier;
+    return { value: val, unit: 'l', standardUnit: 'l', standardRatio: val, isPack: multiplier > 1, multiplier };
+  }
 
   // Match grams/kilos (e.g. 1kg, 500g, 400 grs)
-  const gMatch = str.match(/(\d+(?:\.\d+)?)\s*(?:g|gr|grs|gramos)/);
-  if (gMatch) return { value: parseFloat(gMatch[1]), unit: 'g', standardUnit: 'kg', standardRatio: parseFloat(gMatch[1]) / 1000 };
-
   const kgMatch = str.match(/(\d+(?:\.\d+)?)\s*(?:kg|kgr|kilo|kilos)/);
-  if (kgMatch) return { value: parseFloat(kgMatch[1]), unit: 'kg', standardUnit: 'kg', standardRatio: parseFloat(kgMatch[1]) };
+  if (kgMatch) {
+    const val = parseFloat(kgMatch[1]) * multiplier;
+    return { value: val, unit: 'kg', standardUnit: 'kg', standardRatio: val, isPack: multiplier > 1, multiplier };
+  }
+
+  const gMatch = str.match(/(\d+(?:\.\d+)?)\s*(?:g|gr|grs|gramos)/);
+  if (gMatch) {
+    const val = parseFloat(gMatch[1]) * multiplier;
+    return { value: val, unit: 'g', standardUnit: 'kg', standardRatio: val / 1000, isPack: multiplier > 1, multiplier };
+  }
+
+  // Match count / tea bags / units (e.g. 25 saquitos, 50 sobres, 25 ud)
+  const uMatch = str.match(/(\d+)\s*(?:saquitos|saq|sobres|ud|unidades|unid)/);
+  if (uMatch) {
+    const val = parseInt(uMatch[1], 10) * multiplier;
+    return { value: val, unit: 'ud', standardUnit: 'ud', standardRatio: val, isPack: multiplier > 1, multiplier };
+  }
 
   return null;
 }
@@ -56,6 +89,53 @@ function getTokens(str) {
   return cleanString(str)
     .split(' ')
     .filter(w => w.length >= 2 && !STOPWORDS.has(w));
+}
+
+function matchTwoProducts(p1, p2) {
+  if (isKitOrCombo(p1.title) !== isKitOrCombo(p2.title)) return false;
+
+  const q1 = extractQuantity(p1.title);
+  const q2 = extractQuantity(p2.title);
+  let qtyMatch = false;
+  if (q1 && q2) {
+    if (q1.standardUnit !== q2.standardUnit) return false;
+    if (Math.abs(q1.standardRatio - q2.standardRatio) > 0.05) return false;
+    if (q1.isPack !== q2.isPack) return false;
+    qtyMatch = true;
+  }
+
+  const t1 = cleanString(p1.title);
+  const t2 = cleanString(p2.title);
+
+  // Do not mix mate cocido / saquitos with loose yerba
+  const isCocido1 = t1.includes('cocido') || t1.includes('saquito') || t1.includes('sobre');
+  const isCocido2 = t2.includes('cocido') || t2.includes('saquito') || t2.includes('sobre');
+  if (isCocido1 !== isCocido2) return false;
+
+  // Do not mix despalada (sin palo) with tradicional / suave (con palo)
+  const isSinPalo1 = t1.includes('despalada') || t1.includes('sin palo');
+  const isSinPalo2 = t2.includes('despalada') || t2.includes('sin palo');
+  if (isSinPalo1 !== isSinPalo2) return false;
+
+  // Do not mix leche descremada with leche entera
+  const isDesc1 = t1.includes('descremada') || t1.includes('desnatada');
+  const isDesc2 = t2.includes('descremada') || t2.includes('desnatada');
+  if (isDesc1 !== isDesc2) return false;
+
+  const b1 = cleanString(p1.brand);
+  const b2 = cleanString(p2.brand);
+
+  const brandMatch = (b1 && b2 && (b1.includes(b2) || b2.includes(b1))) ||
+                     (b1 && t2.includes(b1)) ||
+                     (b2 && t1.includes(b2)) ||
+                     (!b1 && !b2);
+
+  const full1 = t1.includes(b1) ? t1 : `${b1} ${t1}`;
+  const full2 = t2.includes(b2) ? t2 : `${b2} ${t2}`;
+  const sim = calculateSimilarity(full1, full2);
+
+  const requiredSim = (brandMatch && qtyMatch) ? 0.38 : 0.50;
+  return sim >= requiredSim && brandMatch;
 }
 
 export function matchProducts(golopolisProducts = [], actualProducts = [], diaProducts = [], meliProducts = [], query = '') {
@@ -111,11 +191,24 @@ export function matchProducts(golopolisProducts = [], actualProducts = [], diaPr
     }
   }
 
-  // Second pass: Match remaining products by brand, quantity and high text similarity
+  // Second pass A: Merge remaining products into existing groups from Pass 1
   const remaining = allProducts.filter(p => !visited.has(p.id));
+  for (const current of remaining) {
+    if (visited.has(current.id)) continue;
+    for (const group of matchedGroups) {
+      if (group.products.some(p => p.storeId === current.storeId)) continue;
+      if (group.products.some(p => matchTwoProducts(current, p))) {
+        group.products.push(current);
+        visited.add(current.id);
+        break;
+      }
+    }
+  }
 
-  for (let i = 0; i < remaining.length; i++) {
-    const current = remaining[i];
+  // Second pass B: Group remaining unvisited products together
+  const stillRemaining = allProducts.filter(p => !visited.has(p.id));
+  for (let i = 0; i < stillRemaining.length; i++) {
+    const current = stillRemaining[i];
     if (visited.has(current.id)) continue;
 
     const group = {
@@ -126,30 +219,12 @@ export function matchProducts(golopolisProducts = [], actualProducts = [], diaPr
     };
     visited.add(current.id);
 
-    const currentQty = extractQuantity(current.title);
-
-    for (let j = i + 1; j < remaining.length; j++) {
-      const other = remaining[j];
+    for (let j = i + 1; j < stillRemaining.length; j++) {
+      const other = stillRemaining[j];
       if (visited.has(other.id)) continue;
-      // Must not already have a product from the same store in this group
       if (group.products.some(p => p.storeId === other.storeId)) continue;
 
-      const otherQty = extractQuantity(other.title);
-      // If both have detectable quantities, standard ratios must match closely
-      if (currentQty && otherQty) {
-        if (currentQty.standardUnit !== otherQty.standardUnit) continue;
-        if (Math.abs(currentQty.standardRatio - otherQty.standardRatio) > 0.05) continue;
-      }
-
-      // Check brand match if present
-      const brand1 = cleanString(current.brand);
-      const brand2 = cleanString(other.brand);
-      const brandMatch = (brand1 && brand2 && (brand1.includes(brand2) || brand2.includes(brand1))) ||
-                         (!brand1 || !brand2);
-
-      const sim = calculateSimilarity(current.title, other.title);
-
-      if (sim >= 0.52 && brandMatch) {
+      if (group.products.some(p => matchTwoProducts(other, p))) {
         group.products.push(other);
         visited.add(other.id);
       }
