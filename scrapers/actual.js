@@ -3,85 +3,38 @@
  * https://actualonline.com.ar/inicio
  */
 
-// Category map to bridge Actual's backend categorization
-const CATEGORY_MAP = {
-  'yerba': ['Infusiones', 1523],
-  'mate': ['Infusiones', 1523],
-  'playadito': ['Infusiones', 1523],
-  'rosamonte': ['Infusiones', 1523],
-  'taragui': ['Infusiones', 1523],
-  'amanda': ['Infusiones', 1523],
-  'cbse': ['Infusiones', 1523],
-  'merced': ['Infusiones', 1523],
-  'tranquera': ['Infusiones', 1523],
-  'chamigo': ['Infusiones', 1523],
-  'nobleza': ['Infusiones', 1523],
-  'leche': ['Lácteos', 97],
-  'yogur': ['Lácteos'],
-  'serenisima': ['Lácteos', 'Infusiones'],
-  'ilolay': ['Lácteos'],
-  'sancor': ['Lácteos'],
-  'crema': ['Lácteos'],
-  'fideo': ['Pastas-Secas', 'Fideos'],
-  'pasta': ['Pastas-Secas', 'PASTAS FRESCAS'],
-  'lucchetti': ['Pastas-Secas'],
-  'matarazzo': ['Pastas-Secas'],
-  'marolio': ['Almacén', 'Pastas-Secas', 'ARROZ'],
-  'arroz': ['ARROZ', 'Almacén'],
-  'gallo': ['ARROZ'],
-  'aceite': ['Aceites-y-Vinagres'],
-  'cocinero': ['Aceites-y-Vinagres'],
-  'natura': ['Aceites-y-Vinagres'],
-  'cañuelas': ['Aceites-y-Vinagres'],
-  'vinagre': ['Aceites-y-Vinagres'],
-  'azucar': ['Azúcar y Edulcorantes'],
-  'ledesma': ['Azúcar y Edulcorantes'],
-  'galletita': ['Galletitas-y-Tostadas'],
-  'oreo': ['Galletitas-y-Tostadas'],
-  'opera': ['Galletitas-y-Tostadas'],
-  'rumba': ['Galletitas-y-Tostadas'],
-  'coca': ['GASEOSAS', 'Bebidas'],
-  'gaseosa': ['GASEOSAS', 'Bebidas'],
-  'pepsi': ['GASEOSAS'],
-  'manaos': ['GASEOSAS'],
-  'cerveza': ['Cervezas', 'Bebidas'],
-  'quilmes': ['Cervezas'],
-  'brahma': ['Cervezas'],
-  'heineken': ['Cervezas'],
-  'vino': ['Vinos', 'Bebidas'],
-  'jabon': ['Jabones de Tocador', 'Limpieza'],
-  'lux': ['Jabones de Tocador'],
-  'dove': ['Jabones de Tocador'],
-  'rexona': ['Jabones de Tocador'],
-  'lavandina': ['LAVANDINAS', 'Limpieza'],
-  'ayudin': ['LAVANDINAS', 'Limpieza'],
-  'detergente': ['DETERGENTES', 'Limpieza'],
-  'magistral': ['DETERGENTES', 'Limpieza'],
-  'ala': ['DETERGENTES', 'Limpieza'],
-  'papel': ['Papeles', 'Limpieza'],
-  'higienico': ['Papeles', 'Limpieza'],
-  'higienol': ['Papeles', 'Limpieza'],
-  'elite': ['Papeles', 'Limpieza']
-};
+const STOP_WORDS = new Set(['de', 'del', 'la', 'el', 'los', 'las', 'un', 'una', 'con', 'sin', 'en', 'para', 'por', 'y', 'o', 'al']);
 
-async function fetchActualPage(payload) {
+function cleanSearchTerm(term) {
+  if (!term) return '';
+  return term
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // remove accents
+    .split(/\s+/)
+    .filter(w => w.length >= 2 && !STOP_WORDS.has(w))
+    .join(' ')
+    .trim();
+}
+
+async function fetchActualPage(searchTerm, page = 0) {
   try {
     const url = 'https://actualonline.com.ar/api/products/10';
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'application/json'
       },
       body: JSON.stringify({
-        page: 1,
+        page: page, // Actual API is ZERO-INDEXED: page 0 is the first page!
         tags: [],
         categoria: 0,
-        search: '',
-        sortBy: '',
-        ...payload
+        search: searchTerm || '',
+        sortBy: ''
       }),
-      signal: AbortSignal.timeout(9000)
+      signal: AbortSignal.timeout(6000)
     });
 
     if (!response.ok) return [];
@@ -94,41 +47,55 @@ async function fetchActualPage(payload) {
 
 export async function searchActual(searchTerm) {
   try {
-    const termLower = searchTerm.toLowerCase().trim();
-    const words = termLower.split(/\s+/).filter(w => w.length > 2);
-
-    // Collect query candidates
-    const payloads = [{ search: searchTerm }];
-
-    for (const [key, cats] of Object.entries(CATEGORY_MAP)) {
-      if (termLower.includes(key)) {
-        cats.forEach(c => payloads.push({ categoria: c }));
-      }
-    }
+    const rawClean = cleanSearchTerm(searchTerm);
+    const words = rawClean.split(/\s+/).filter(w => w.length >= 2);
 
     const allRaw = [];
     const seenIds = new Set();
 
-    for (const p of payloads) {
-      const prods = await fetchActualPage(p);
+    const addProducts = (prods) => {
       for (const prod of prods) {
         if (!seenIds.has(prod.id)) {
           seenIds.add(prod.id);
           allRaw.push(prod);
         }
       }
-      if (allRaw.length >= 40) break;
+    };
+
+    // 1. Primary search with cleaned full term (e.g. "aceite girasol")
+    let prods = await fetchActualPage(rawClean, 0);
+    addProducts(prods);
+
+    // If initial query returned 0 and original term had accents/stopwords, try original term directly
+    if (allRaw.length === 0 && rawClean !== searchTerm.toLowerCase().trim()) {
+      prods = await fetchActualPage(searchTerm.toLowerCase().trim(), 0);
+      addProducts(prods);
     }
 
-    // Relevance filtering: title or brand must match search terms
-    const filtered = allRaw.filter(p => {
-      const title = (p.title || '').toLowerCase();
-      const brand = (p.brand || '').toLowerCase();
-      const cat = (p.category || '').toLowerCase();
-      return words.some(w => title.includes(w) || brand.includes(w) || cat.includes(w));
-    });
+    // 2. Intelligent Multi-Word Fallback:
+    // If strict multi-word search returned 0 (e.g. "aceite girasol cañuelas"),
+    // query the primary noun (e.g. "aceite") and then filter by remaining terms in memory.
+    if (allRaw.length === 0 && words.length > 1) {
+      const primaryWord = words[0]; // e.g. "aceite", "leche", "yerba"
+      const fallbackProds = await fetchActualPage(primaryWord, 0);
+      
+      // Filter fallback products to ensure they match at least one of the other search words
+      const relevantFallback = fallbackProds.filter(p => {
+        const title = (p.title || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const brand = (p.brand || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        return words.some(w => title.includes(w) || brand.includes(w));
+      });
+      addProducts(relevantFallback);
+    }
 
-    return filtered.map(p => {
+    // 3. If single term query returned 30+ items, fetch page 1 (second page) for completeness
+    if (allRaw.length >= 30 && words.length === 1) {
+      const page1Prods = await fetchActualPage(rawClean, 1);
+      addProducts(page1Prods);
+    }
+
+    // Map to normalized comparator format
+    return allRaw.map(p => {
       const price = typeof p.price === 'number' ? p.price : parseFloat(p.price) || 0;
       const originalPrice = p.price0 && parseFloat(p.price0) > price ? parseFloat(p.price0) : null;
       const discount = p.discount ? parseFloat(p.discount) : (originalPrice ? Math.round(((originalPrice - price) / originalPrice) * 100) : null);

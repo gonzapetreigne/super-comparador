@@ -10,3 +10,4 @@ scratch_*.html
 
 
 .vercel
+.env*

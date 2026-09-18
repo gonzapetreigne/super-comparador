@@ -40,20 +40,60 @@ async function getMeliAccessToken() {
   }
 }
 
+function slugify(term) {
+  return term
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 export async function searchMercadoLibre(searchTerm) {
+  if (!searchTerm || searchTerm.trim().length < 2) return [];
+
+  const slug = slugify(searchTerm);
+  if (!slug) return [];
+
   try {
-    // 1. If ScraperAPI key is present, use ScraperAPI residential proxy directly
+    // 1. Primary Strategy: Fast Search Crawler (Bypasses Akamai Bot Protection in ~1-1.5s)
+    try {
+      const targetUrl = `https://listado.mercadolibre.com.ar/${slug}`;
+      const response = await fetch(targetUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+          'Accept-Language': 'es-AR,es;q=0.9'
+        },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(4500)
+      });
+
+      if (response.ok) {
+        const finalUrl = response.url || '';
+        const html = await response.text();
+        if (!finalUrl.includes('account-verification') && !html.includes('account-verification') && !html.includes('px-captcha')) {
+          const prods = parseMeliHtml(html, searchTerm);
+          if (prods.length > 0) return prods;
+        }
+      }
+    } catch (crawlerErr) {
+      console.warn('[Mercado Libre Crawler] Intento crawler falló o timeout:', crawlerErr.message);
+    }
+
+    // 2. Secondary Strategy: ScraperAPI Proxy (if API key is present)
     if (process.env.SCRAPER_API_KEY) {
       try {
-        const targetUrl = `https://listado.mercadolibre.com.ar/${encodeURIComponent(searchTerm)}`;
+        const targetUrl = `https://listado.mercadolibre.com.ar/${slug}`;
         const scraperUrl = `http://api.scraperapi.com?api_key=${process.env.SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&device_type=desktop`;
         
         const response = await fetch(scraperUrl, {
           headers: {
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'es-AR,es;q=0.9'
           },
-          signal: AbortSignal.timeout(18000)
+          signal: AbortSignal.timeout(4500)
         });
 
         if (response.ok) {
@@ -66,13 +106,14 @@ export async function searchMercadoLibre(searchTerm) {
       }
     }
 
-    // 2. Try official authenticated API if credentials are provided
+    // 3. Tertiary Strategy: Official authenticated API if credentials are provided
     const token = await getMeliAccessToken();
     if (token) {
       try {
         const apiUrl = `https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(searchTerm)}&category=MLA1403&limit=50`;
         const apiRes = await fetch(apiUrl, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 'Authorization': `Bearer ${token}` },
+          signal: AbortSignal.timeout(4000)
         });
         if (apiRes.ok) {
           const apiData = await apiRes.json();
@@ -107,8 +148,8 @@ export async function searchMercadoLibre(searchTerm) {
       }
     }
 
-    // 3. Fallback to direct HTML Scraping (residential local connection)
-    const targetUrl = `https://listado.mercadolibre.com.ar/${encodeURIComponent(searchTerm)}`;
+    // 4. Fallback to direct HTML Scraping (standard desktop user agent)
+    const targetUrl = `https://listado.mercadolibre.com.ar/${slug}`;
     const response = await fetch(targetUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -116,7 +157,7 @@ export async function searchMercadoLibre(searchTerm) {
         'Accept-Language': 'es-AR,es;q=0.9'
       },
       redirect: 'follow',
-      signal: AbortSignal.timeout(9000)
+      signal: AbortSignal.timeout(4000)
     });
 
     if (!response.ok) {
@@ -129,7 +170,7 @@ export async function searchMercadoLibre(searchTerm) {
 
     // Detect Akamai bot checkpoint redirection
     if (finalUrl.includes('account-verification') || html.includes('account-verification') || html.includes('px-captcha')) {
-      console.warn('[Mercado Libre] Solicitud redirigida a verificación de cuenta / anti-bot (IP de datacenter en nube).');
+      console.warn('[Mercado Libre] Solicitud redirigida a verificación de cuenta / anti-bot.');
       const emptyBlocked = [];
       emptyBlocked.blockedByBot = true;
       return emptyBlocked;
@@ -151,21 +192,26 @@ function parseMeliHtml(html, searchTerm) {
 
   for (let i = 0; i < rawItems.length; i++) {
     const item = rawItems[i];
+    // Skip promotional intervention banners
+    if (item.includes('ui-search-layout__item--intervention')) continue;
 
     // Title
-    const titleMatch = item.match(/class="[^"]*(?:poly-component__title|ui-search-item__title)[^"]*"[^>]*>(?:<a[^>]*>)?([^<]+)/i);
+    const titleMatch = item.match(/class="[^"]*(?:poly-component__title|ui-search-item__title)[^"]*"[^>]*>(?:<a[^>]*>)?([^<]+)/i)
+      || item.match(/<h2[^>]*class="[^"]*ui-search-item__title[^"]*"[^>]*>([^<]+)<\/h2>/i)
+      || item.match(/<h2[^>]*>([^<]+)<\/h2>/i);
     if (!titleMatch) continue;
     const title = titleMatch[1].trim();
 
-    // Product link
-    const urlMatch = item.match(/href="([^"]+)"/i);
+    // Product link (must be a real URL, ignore fragment links)
+    const urlMatch = item.match(/href="([^"]*mercadolibre\.com\.ar\/[^"]+)"/i)
+      || item.match(/href="([^"#][^"]*)"/i);
     const link = urlMatch ? urlMatch[1].replace(/&amp;/g, '&') : 'https://www.mercadolibre.com.ar/supermercado';
 
-    // Original price if on sale (marked with andes-money-amount--previous)
+    // Original price if on sale
     const origPriceMatch = item.match(/andes-money-amount--previous[\s\S]*?class="andes-money-amount__fraction"[^>]*>([^<]+)/i);
     const originalPrice = origPriceMatch ? parseFloat(origPriceMatch[1].replace(/\./g, '').replace(/,/g, '.')) : null;
 
-    // Current price (must not match previous price)
+    // Current price
     let price = null;
     const currentPriceMatch = item.match(/class="[^"]*poly-price__current[^"]*"[\s\S]*?class="andes-money-amount__fraction"[^>]*>([^<]+)/i);
     if (currentPriceMatch) {
@@ -191,7 +237,7 @@ function parseMeliHtml(html, searchTerm) {
     const idMatch = link.match(/MLA-?(\d+)/i) || link.match(/\/p\/(MLA\d+)/i);
     const productId = idMatch ? idMatch[1] : `meli_${i}`;
 
-    // Detect brand from title (strip common category words so "Yerba Mate Playadito" yields brand "PLAYADITO")
+    // Brand detection
     const cleanTitle = title.replace(/^(?:combo|pack\s*x\s*\d+|oferta!?\s*)?/i, '').trim();
     const withoutCat = cleanTitle
       .replace(/^(?:yerba\s+mate|yerba|aceite\s+de\s+girasol|aceite\s+de\s+oliva|aceite|leche\s+entera|leche\s+descremada|leche|fideos|arroz|galletitas|vino|cerveza|detergente|jabon|pure\s+de\s+tomate|harina)\s+/i, '')
@@ -212,7 +258,7 @@ function parseMeliHtml(html, searchTerm) {
       price: Math.round(price * 100) / 100,
       originalPrice: originalPrice ? Math.round(originalPrice * 100) / 100 : null,
       discountPercent: discountPercent,
-      promotionText: 'Envío Full ⚡' + (discountPercent ? ` (${discountPercent}% OFF)` : ''),
+      promotionText: isFull ? ('Envío Full ⚡' + (discountPercent ? ` (${discountPercent}% OFF)` : '')) : (discountPercent ? `${discountPercent}% OFF` : null),
       ean: null,
       image: image,
       available: true,
