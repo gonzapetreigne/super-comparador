@@ -60,6 +60,32 @@ export function loadActualCatalog() {
   return [];
 }
 
+let cachedMeli = null;
+
+export function loadMeliCatalog() {
+  if (cachedMeli && cachedMeli.length > 0) return cachedMeli;
+  try {
+    const filePath = resolveDataPath('mercadolibre.json');
+    if (fs.existsSync(filePath)) {
+      cachedMeli = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      console.log(`[Catalog Engine] Mercado Libre catálogo cargado: ${cachedMeli.length} productos.`);
+      return cachedMeli;
+    }
+  } catch (err) {
+    console.error('[Catalog Engine] Error cargando data/mercadolibre.json:', err.message);
+  }
+  return [];
+}
+
+export function reloadCatalogs() {
+  cachedGolopolis = null;
+  cachedActual = null;
+  cachedMeli = null;
+  loadGolopolisCatalog();
+  loadActualCatalog();
+  loadMeliCatalog();
+}
+
 export function cleanNorm(str) {
   return (str || '')
     .toLowerCase()

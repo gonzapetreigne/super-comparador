@@ -1,5 +1,11 @@
 {
-  "lastUpdated": "2026-09-18T12:48:43.173Z",
+  "lastUpdated": "2026-09-18T13:37:30.120Z",
   "formattedDate": "18 de septiembre de 2026",
-  "displayDate": "18/09/2026"
+  "displayDate": "18/09/2026",
+  "totalProducts": {
+    "actual": 2531,
+    "golopolis": 4571,
+    "mercadolibre": 5143,
+    "dia": 1350
+  }
 }

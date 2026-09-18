@@ -71,21 +71,23 @@ app.get('/api/search', async (req, res) => {
   const startTime = Date.now();
 
   try {
-    // Run the 3 fast local scrapers in parallel
-    const [golopolisRes, actualRes, diaRes] = await Promise.allSettled([
+    // Run all 4 store scrapers/catalogs in parallel (Golópolis, Actual, Día%, MELI Full)
+    const [golopolisRes, actualRes, diaRes, meliRes] = await Promise.allSettled([
       searchGolopolis(query),
       searchActual(query),
-      searchDia(query)
+      searchDia(query),
+      searchMercadoLibre(query)
     ]);
 
     const golopolisProds = golopolisRes.status === 'fulfilled' ? golopolisRes.value : [];
     const actualProds = actualRes.status === 'fulfilled' ? actualRes.value : [];
     const diaProds = diaRes.status === 'fulfilled' ? diaRes.value : [];
+    const meliProds = meliRes.status === 'fulfilled' ? meliRes.value : [];
 
-    console.log(`[Search Fast] Resultados locales: Golópolis (${golopolisProds.length}), Actual (${actualProds.length}), Día (${diaProds.length}) en ${Date.now() - startTime}ms`);
+    console.log(`[Search Fast] Resultados: Golópolis (${golopolisProds.length}), Actual (${actualProds.length}), Día (${diaProds.length}), MELI (${meliProds.length}) en ${Date.now() - startTime}ms`);
 
-    // Match across the 3 local stores
-    const matchedResult = matchProducts(golopolisProds, actualProds, diaProds, [], query);
+    // Match across all stores
+    const matchedResult = matchProducts(golopolisProds, actualProds, diaProds, meliProds, query);
     const elapsedMs = Date.now() - startTime;
 
     const responseData = {
@@ -99,7 +101,7 @@ app.get('/api/search', async (req, res) => {
         golopolis: golopolisProds.length,
         actual: actualProds.length,
         dia: diaProds.length,
-        mercadolibre: 0
+        mercadolibre: meliProds.length
       },
       stores: {
         golopolis: { name: 'Golópolis', branch: 'Las Flores', count: golopolisProds.length },
@@ -108,20 +110,21 @@ app.get('/api/search', async (req, res) => {
         mercadolibre: {
           name: 'Mercado Libre',
           branch: 'Full Súper ⚡',
-          count: 0,
-          pending: true
+          count: meliProds.length,
+          pending: false
         }
       },
-      meliPending: true,
+      meliPending: false,
       timestamp: new Date().toISOString()
     };
 
-    // Cache local data for subsequent Meli merge
+    // Cache full data
     searchCache.set(cacheKey, {
       golo: golopolisProds,
       actual: actualProds,
       dia: diaProds,
-      hasFullResult: false,
+      meli: meliProds,
+      hasFullResult: true,
       data: responseData,
       timestamp: Date.now()
     });

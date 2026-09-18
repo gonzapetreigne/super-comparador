@@ -11,3 +11,5 @@ scratch_*.html
 
 .vercel
 .env*
+.chrome_meli_profile/
+logs/

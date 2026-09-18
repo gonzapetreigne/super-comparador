@@ -3,6 +3,8 @@
  * https://www.mercadolibre.com.ar/supermercado
  */
 
+import { loadMeliCatalog, searchInCatalog } from './catalogEngine.js';
+
 let meliTokenCache = { token: null, expiresAt: 0 };
 
 async function getMeliAccessToken() {
@@ -57,7 +59,21 @@ export async function searchMercadoLibre(searchTerm) {
   if (!slug) return [];
 
   try {
-    // 0. Primary Strategy: Official Mercado Libre Developers API (Instant <400ms, 100% legal, no captchas)
+    // 0. Primary Strategy: In-Memory Catalog (Instant <3ms, 100% reliable, zero external network dependency)
+    try {
+      const meliCatalog = loadMeliCatalog();
+      if (meliCatalog && meliCatalog.length > 0) {
+        const matches = searchInCatalog(meliCatalog, searchTerm);
+        if (matches && matches.length > 0) {
+          console.log(`[Mercado Libre Catálogo] ${matches.length} productos encontrados en memoria para "${searchTerm}".`);
+          return matches;
+        }
+      }
+    } catch (catErr) {
+      console.warn('[Mercado Libre Catálogo] Fallo al buscar en catálogo local:', catErr.message);
+    }
+
+    // 1. Secondary Strategy: Official Mercado Libre Developers API (Instant <400ms, 100% legal, no captchas)
     try {
       const token = await getMeliAccessToken();
       if (token) {
