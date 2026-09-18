@@ -121,9 +121,20 @@ app.get('/api/search/meli', async (req, res) => {
     console.log(`[Search Meli Async] Mercado Libre respondió en ${elapsedMs}ms: ${meliProds.length} productos (bloqueado: ${meliProds.blockedByBot || false})`);
 
     const cached = searchCache.get(cacheKey) || {};
-    const golo = cached.golo || [];
-    const actual = cached.actual || [];
-    const dia = cached.dia || [];
+    let golo = cached.golo;
+    let actual = cached.actual;
+    let dia = cached.dia;
+
+    if (!golo || !actual || !dia) {
+      const [goloRes, actualRes, diaRes] = await Promise.allSettled([
+        searchGolopolis(query),
+        searchActual(query),
+        searchDia(query)
+      ]);
+      golo = goloRes.status === 'fulfilled' ? goloRes.value : [];
+      actual = actualRes.status === 'fulfilled' ? actualRes.value : [];
+      dia = diaRes.status === 'fulfilled' ? diaRes.value : [];
+    }
 
     // Re-match all 4 stores together
     const matchedResult = matchProducts(golo, actual, dia, meliProds, query);
@@ -169,6 +180,38 @@ app.get('/api/search/meli', async (req, res) => {
   } catch (error) {
     console.error('[Search Meli Async] Error:', error);
     return res.status(500).json({ error: 'Error al consultar Mercado Libre', details: error.message });
+  }
+});
+
+// Temporary diagnostic endpoint for Golopolis
+app.get('/api/test-golo', async (req, res) => {
+  const q = req.query.q || 'atun';
+  try {
+    const url = `https://golopolis.com.ar/app/?action=products&search=${encodeURIComponent(q)}`;
+    const t0 = Date.now();
+    const r = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Cookie': 'suite-company-id=227; PHPSESSID=comparador_las_flores_session'
+      },
+      signal: AbortSignal.timeout(8000)
+    });
+    const html = await r.text();
+    const match = html.match(/aProducts\s*=\s*(\[[\s\S]*?\]);/);
+    let parsedCount = 0;
+    if (match) {
+      try { parsedCount = JSON.parse(match[1]).length; } catch (e) {}
+    }
+    res.json({
+      status: r.status,
+      timeMs: Date.now() - t0,
+      len: html.length,
+      hasAProducts: Boolean(match),
+      parsedCount,
+      preview: html.substring(0, 500)
+    });
+  } catch (e) {
+    res.json({ error: e.message });
   }
 });
 

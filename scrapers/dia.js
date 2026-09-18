@@ -3,10 +3,20 @@
  * https://diaonline.supermercadosdia.com.ar/
  */
 
+import { cleanNorm, getWordVariations } from './catalogEngine.js';
+
+const STOP_WORDS = new Set([
+  'de', 'del', 'la', 'el', 'los', 'las', 'un', 'una', 'con', 'sin', 'en',
+  'para', 'por', 'y', 'o', 'al', 'x', 'gr', 'grs', 'g', 'kg', 'ml', 'cc', 'l', 'lt', 'lts'
+]);
+
 export async function searchDia(searchTerm) {
   try {
-    // VTEX Catalog System Search Endpoint (Exact keyword matching without fallback to sponsored items)
-    const url = `https://diaonline.supermercadosdia.com.ar/api/catalog_system/pub/products/search?ft=${encodeURIComponent(searchTerm)}&_from=0&_to=35`;
+    const rawClean = cleanNorm(searchTerm);
+    if (!rawClean) return [];
+
+    // VTEX Catalog System Search Endpoint
+    const url = `https://diaonline.supermercadosdia.com.ar/api/catalog_system/pub/products/search?ft=${encodeURIComponent(rawClean)}&_from=0&_to=35`;
 
     const response = await fetch(url, {
       headers: {
@@ -26,14 +36,24 @@ export async function searchDia(searchTerm) {
       return [];
     }
 
-    // Strict filter: ensure product title or brand contains at least one significant search term word
-    const searchTerms = searchTerm.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    // Filter using accent-normalized tokens & variations
+    const rawWords = rawClean.split(/\s+/).filter(w => w.length > 0);
+    const searchWords = rawWords.filter(w => w.length > 1 && !STOP_WORDS.has(w));
+    const finalWords = searchWords.length > 0 ? searchWords : rawWords;
+
+    const wordGroups = finalWords.map(w => ({
+      original: w,
+      variations: getWordVariations(w)
+    }));
 
     const filtered = rawProducts.filter(p => {
-      const name = (p.productName || '').toLowerCase();
-      const brand = (p.brand || '').toLowerCase();
-      const categories = Array.isArray(p.categories) ? p.categories.join(' ').toLowerCase() : '';
-      return searchTerms.some(term => name.includes(term) || brand.includes(term) || categories.includes(term));
+      const name = cleanNorm(p.productName);
+      const brand = cleanNorm(p.brand);
+      const categories = Array.isArray(p.categories) ? cleanNorm(p.categories.join(' ')) : '';
+
+      return wordGroups.some(wg => {
+        return wg.variations.some(v => name.includes(v) || brand.includes(v) || categories.includes(v));
+      });
     });
 
     return filtered.map(p => {

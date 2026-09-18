@@ -1,16 +1,18 @@
 /**
- * Golópolis Scraper (Sucursal Las Flores - ID 227)
+ * Golópolis Scraper & Pre-mapped Catalog Engine (Sucursal Las Flores - ID 227)
  * https://golopolis.com.ar/app/?action=shop
  */
 
-async function fetchGolopolisQuery(term) {
+import { searchInCatalog, loadGolopolisCatalog } from './catalogEngine.js';
+
+async function fetchGolopolisLive(term, timeoutMs = 2500) {
   const url = `https://golopolis.com.ar/app/?action=products&search=${encodeURIComponent(term)}`;
   const response = await fetch(url, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Cookie': 'suite-company-id=227; PHPSESSID=comparador_las_flores_session'
     },
-    signal: AbortSignal.timeout(9000)
+    signal: AbortSignal.timeout(timeoutMs)
   });
 
   if (!response.ok) return [];
@@ -20,43 +22,8 @@ async function fetchGolopolisQuery(term) {
   if (!match) return [];
 
   try {
-    return JSON.parse(match[1]);
-  } catch (e) {
-    return [];
-  }
-}
-
-export async function searchGolopolis(searchTerm) {
-  try {
-    let rawProducts = await fetchGolopolisQuery(searchTerm);
-
-    // If multi-word search returned very few results (e.g. "yerba mate"), try the individual words
-    const words = searchTerm.trim().split(/\s+/).filter(w => w.length > 2);
-    if (rawProducts.length < 5 && words.length > 1) {
-      for (const word of words) {
-        const moreProds = await fetchGolopolisQuery(word);
-        if (moreProds.length > 0) {
-          const existingIds = new Set(rawProducts.map(p => p.id));
-          for (const p of moreProds) {
-            if (!existingIds.has(p.id)) {
-              existingIds.add(p.id);
-              rawProducts.push(p);
-            }
-          }
-        }
-      }
-    }
-
-    // Strict relevance filter: ensure product name or brand or category matches search terms
-    const filtered = rawProducts.filter(p => {
-      const name = (p.name || '').toLowerCase();
-      const brand = (p.brand || '').toLowerCase();
-      const cat = (p.category || '').toLowerCase();
-      const item = (p.item || '').toLowerCase();
-      return words.some(w => name.includes(w) || brand.includes(w) || cat.includes(w) || item.includes(w));
-    });
-
-    return filtered.map(p => {
+    const raw = JSON.parse(match[1]);
+    return raw.map(p => {
       const price = typeof p.price === 'number' ? p.price : parseFloat(p.price) || 0;
       const originalPrice = p.originalPrice ? parseFloat(p.originalPrice) : null;
       const discount = p.discount && parseFloat(p.discount) > 0 ? parseFloat(p.discount) : null;
@@ -76,6 +43,11 @@ export async function searchGolopolis(searchTerm) {
         title = `${itemStr} ${title}`;
       }
 
+      const category = (p.category || '').trim();
+      if (category.toLowerCase() === 'aceites' && !title.toLowerCase().includes('aceite') && !title.toLowerCase().includes('a.oliva')) {
+        title = `ACEITE ${title}`;
+      }
+
       return {
         id: `golo_${p.id || p.foreign_id}`,
         store: 'Golópolis',
@@ -83,6 +55,7 @@ export async function searchGolopolis(searchTerm) {
         branch: 'Las Flores',
         title: title,
         brand: (p.brand || '').trim(),
+        category: category,
         price: Math.round(price * 100) / 100,
         originalPrice: originalPrice ? Math.round(originalPrice * 100) / 100 : null,
         discountPercent: discount,
@@ -90,11 +63,43 @@ export async function searchGolopolis(searchTerm) {
         ean: ean,
         image: imageUrl,
         available: parseInt(p.availables || '1', 10) > 0,
-        url: `https://golopolis.com.ar/app/?action=products&search=${encodeURIComponent(p.name || searchTerm)}`
+        url: `https://golopolis.com.ar/app/?action=products&search=${encodeURIComponent(p.name || term)}`
       };
     });
+  } catch (e) {
+    return [];
+  }
+}
+
+export async function searchGolopolis(searchTerm) {
+  try {
+    const catalog = loadGolopolisCatalog();
+    const catalogResults = searchInCatalog(catalog, searchTerm);
+
+    // If running in local environment (Argentine residential IP), optionally attempt live query
+    if (!process.env.VERCEL) {
+      try {
+        const liveResults = await fetchGolopolisLive(searchTerm, 2000);
+        if (liveResults && liveResults.length > 0) {
+          return liveResults;
+        }
+      } catch (e) {
+        // Fallback to catalog
+      }
+    }
+
+    // In Vercel or cloud (or if live returned 0 / timed out):
+    // Return high-accuracy catalog results instantly
+    if (catalogResults.length > 0) {
+      return catalogResults;
+    }
+
+    // Fallback: If catalog had 0 results for an unusual term, try live fetch
+    const fallbackLive = await fetchGolopolisLive(searchTerm, 2500);
+    return fallbackLive;
   } catch (error) {
     console.error('[Golópolis] Fallo de búsqueda:', error.message);
-    return [];
+    const catalog = loadGolopolisCatalog();
+    return searchInCatalog(catalog, searchTerm);
   }
 }
