@@ -3,6 +3,10 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import os from 'os';
+import dotenv from 'dotenv';
+
+dotenv.config();
+dotenv.config({ path: '.env.local' });
 
 import { searchGolopolis } from './scrapers/golopolis.js';
 import { searchActual } from './scrapers/actual.js';

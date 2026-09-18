@@ -57,7 +57,33 @@ export async function searchMercadoLibre(searchTerm) {
   if (!slug) return [];
 
   try {
-    // 1. Primary Strategy: Fast Search Crawler (Bypasses Akamai Bot Protection in ~1-1.5s on residential/local IP)
+    // 0. Primary Strategy: Official Mercado Libre Developers API (Instant <400ms, 100% legal, no captchas)
+    try {
+      const token = await getMeliAccessToken();
+      if (token) {
+        console.log(`[Mercado Libre API] Consultando API Oficial para "${searchTerm}"...`);
+        const apiUrl = `https://api.mercadolibre.com/sites/MLA/search?shipping_mode=fulfillment&q=${encodeURIComponent(searchTerm)}`;
+        const apiRes = await fetch(apiUrl, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          signal: AbortSignal.timeout(6000)
+        });
+
+        if (apiRes.ok) {
+          const apiData = await apiRes.json();
+          const prods = parseMeliApiJson(apiData, searchTerm);
+          console.log(`[Mercado Libre API] Éxito: ${prods.length} productos obtenidos.`);
+          if (prods.length > 0) return prods;
+        } else {
+          console.warn('[Mercado Libre API] Error status:', apiRes.status);
+        }
+      }
+    } catch (apiErr) {
+      console.warn('[Mercado Libre API] Fallo o timeout:', apiErr.message);
+    }
+
+    // 1. Secondary Strategy: Fast Search Crawler (Bypasses Akamai Bot Protection in ~1-1.5s on residential/local IP)
     try {
       const targetUrl = `https://listado.mercadolibre.com.ar/${slug}`;
       const response = await fetch(targetUrl, {
@@ -217,3 +243,71 @@ function parseMeliHtml(html, searchTerm) {
 
   return products;
 }
+
+function parseMeliApiJson(data, searchTerm) {
+  if (!data || !Array.isArray(data.results)) return [];
+
+  const products = [];
+
+  for (const item of data.results) {
+    const price = parseFloat(item.price);
+    if (!price || isNaN(price) || price <= 0) continue;
+
+    const originalPrice = item.original_price ? parseFloat(item.original_price) : null;
+    const discountPercent = (originalPrice && originalPrice > price)
+      ? Math.round(((originalPrice - price) / originalPrice) * 100)
+      : null;
+
+    const brandAttr = item.attributes?.find(a => a.id === 'BRAND');
+    let brand = brandAttr ? (brandAttr.value_name || '') : '';
+    if (!brand) {
+      const cleanTitle = (item.title || '').replace(/^(?:combo|pack\s*x\s*\d+|oferta!?\s*)?/i, '').trim();
+      const withoutCat = cleanTitle
+        .replace(/^(?:yerba\s+mate|yerba|aceite\s+de\s+girasol|aceite\s+de\s+oliva|aceite|leche\s+entera|leche\s+descremada|leche|fideos|arroz|galletitas|vino|cerveza|detergente|jabon|pure\s+de\s+tomate|harina)\s+/i, '')
+        .replace(/^(?:de\s+la|de\s+los|de\s+campo\s+|de\s+|del\s+|la\s+|el\s+|los\s+|las\s+)/i, '')
+        .trim();
+      const words = withoutCat.split(/\s+/);
+      brand = words.length > 0 && words[0].length >= 3 ? words[0].toUpperCase() : '';
+    }
+
+    const isFull = item.shipping?.logistic_type === 'fulfillment' || item.shipping?.tags?.includes('fulfillment') || true;
+    const image = item.thumbnail ? item.thumbnail.replace('-I.jpg', '-O.jpg').replace('http://', 'https://') : '';
+
+    products.push({
+      id: `meli_${item.id}`,
+      store: 'Mercado Libre',
+      storeId: 'mercadolibre',
+      branch: 'Full Súper ⚡',
+      title: item.title,
+      brand: brand,
+      price: Math.round(price * 100) / 100,
+      originalPrice: originalPrice ? Math.round(originalPrice * 100) / 100 : null,
+      discountPercent: discountPercent,
+      promotionText: isFull ? ('Envío Full ⚡' + (discountPercent ? ` (${discountPercent}% OFF)` : '')) : (discountPercent ? `${discountPercent}% OFF` : null),
+      ean: null,
+      image: image,
+      available: true,
+      isFull: isFull,
+      url: item.permalink || 'https://www.mercadolibre.com.ar/supermercado'
+    });
+  }
+
+  // Filter products by query relevance
+  const stopWords = new Set(['de', 'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'con', 'sin', 'en', 'para', 'por', 'del', 'al', 'y', 'o']);
+  const queryTokens = searchTerm
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .split(/[^a-z0-9]+/)
+    .filter(w => w.length >= 2 && !stopWords.has(w));
+
+  if (queryTokens.length > 0) {
+    return products.filter(p => {
+      const titleNorm = p.title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      return queryTokens.some(tok => titleNorm.includes(tok));
+    });
+  }
+
+  return products;
+}
+
