@@ -638,15 +638,15 @@
   </nav>
 
   <!-- App Script with cache-busting -->
-  <script src="/app.js?v=2.3.0"></script>
+  <script src="/app.js?v=2.4.0"></script>
   <script>
     // Register PWA service worker with auto-update
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js?v=3')
+        navigator.serviceWorker.register('/sw.js?v=4')
           .then(reg => {
             reg.update();
-            console.log('SW registrado y actualizado a v3');
+            console.log('SW registrado y actualizado a v4');
           })
           .catch(err => console.log('Fallo registro SW:', err));
       });

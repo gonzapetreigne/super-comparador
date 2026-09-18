@@ -41,6 +41,22 @@ function formatMoney(amount) {
   return '$' + Math.round(amount).toLocaleString('es-AR');
 }
 
+// Build canonical search URL for Mercado Libre (opens app on mobile)
+function getMeliSearchUrl(title, brand) {
+  const query = [brand, title].filter(Boolean).join(' ');
+  const clean = query
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(w => w.length > 1 && !['de', 'el', 'la', 'los', 'las', 'un', 'una', 'con', 'sin', 'para', 'por', 'ud', 'unidades', 'grs', 'ml'].includes(w))
+    .slice(0, 5)
+    .join('-');
+  return clean ? `https://listado.mercadolibre.com.ar/${encodeURIComponent(clean)}` : 'https://www.mercadolibre.com.ar/supermercado';
+}
+
 // Calculate effective price taking promos into account
 function getEffectivePrice(storeId, itemPrice) {
   if (!itemPrice || itemPrice <= 0) return 0;
@@ -530,6 +546,27 @@ function renderCards(cards) {
             </div>
           `;
         }
+
+        if (store.id === 'mercadolibre') {
+          const searchUrl = getMeliSearchUrl(card.title, card.brand);
+          return `
+            <div class="p-2 sm:p-2.5 rounded-xl border border-dashed border-amber-300/90 bg-amber-50/50 flex flex-col justify-between text-center transition">
+              <div class="flex items-center justify-between gap-1 mb-1">
+                <span class="text-[10px] sm:text-[11px] font-bold text-amber-950 truncate">${store.name}</span>
+                <img src="${store.logo}" alt="${store.name}" class="${store.logoClass} opacity-80" onerror="this.style.display='none'" />
+              </div>
+              <div class="my-1">
+                <span class="text-[10px] text-slate-400 font-medium block">Sin catálogo local</span>
+                <span class="text-[9px] text-amber-900/70 font-medium block">Otros vendedores en app</span>
+              </div>
+              <a href="${searchUrl}" target="_blank" rel="noopener noreferrer" class="mt-1.5 w-full py-1 px-1.5 bg-amber-100 hover:bg-amber-200 active:scale-95 text-amber-950 font-black text-[10px] rounded-lg border border-amber-300 transition flex items-center justify-center gap-1 text-center" title="Buscar vendedores para este producto en la app de Mercado Libre">
+                <span>Ver en MELI</span>
+                <svg class="w-3 h-3 text-amber-900 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+              </a>
+            </div>
+          `;
+        }
+
         return `
           <div class="p-2 sm:p-2.5 rounded-xl border ${theme.unavailBorder} ${theme.unavailBg} flex flex-col justify-between opacity-75 text-center transition">
             <div class="flex items-center justify-between gap-1 mb-1">
@@ -537,13 +574,37 @@ function renderCards(cards) {
               <img src="${store.logo}" alt="${store.name}" class="${store.logoClass} opacity-60" onerror="this.style.display='none'" />
             </div>
             <span class="text-[11px] sm:text-xs text-slate-400 my-1 font-medium">No disponible</span>
-            <span class="text-[9px] text-slate-400/60">-</span>
+            <span class="text-[9px] text-slate-400/60">${store.id === 'dia' ? 'Online' : 'Sucursal local'}</span>
           </div>
         `;
       }
 
       const effPrice = getEffectivePrice(store.id, p.price);
       const isWinner = cheapest && cheapest.id === store.id && availableStores.length > 1;
+
+      let actionBtnHtml = '';
+      if (store.id === 'mercadolibre') {
+        const meliUrl = p.url || getMeliSearchUrl(card.title, card.brand);
+        actionBtnHtml = `
+          <a href="${meliUrl}" target="_blank" rel="noopener noreferrer" class="mt-2 w-full py-1.5 px-1.5 bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-950 font-black text-[10px] rounded-lg shadow-2xs transition flex items-center justify-center gap-1 text-center" title="Abrir en la App de Mercado Libre para comprar o ver otros vendedores">
+            <span>Abrir en MELI</span>
+            <svg class="w-3 h-3 text-slate-950 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+          </a>
+        `;
+      } else if (store.id === 'dia' && p.url) {
+        actionBtnHtml = `
+          <a href="${p.url}" target="_blank" rel="noopener noreferrer" class="mt-2 w-full py-1.5 px-1.5 bg-red-100/90 hover:bg-red-200 active:scale-95 text-red-900 font-bold text-[10px] rounded-lg transition flex items-center justify-center gap-1 text-center" title="Ver en Día Online">
+            <span>Día Online</span>
+            <svg class="w-2.5 h-2.5 text-red-800 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+          </a>
+        `;
+      } else {
+        actionBtnHtml = `
+          <div class="mt-2 w-full py-1 text-slate-400 font-medium text-[10px] flex items-center justify-center text-center">
+            ${store.branch}
+          </div>
+        `;
+      }
 
       return `
         <div class="p-2 sm:p-2.5 rounded-xl border ${isWinner ? 'border-2 border-emerald-500 bg-gradient-to-b from-emerald-50/90 to-emerald-50/40 shadow-sm ring-1 ring-emerald-500/30' : `border ${theme.border} ${theme.bg}`} flex flex-col justify-between transition hover:shadow-xs">
@@ -570,6 +631,8 @@ function renderCards(cards) {
           <div class="text-[10px] ${isWinner ? 'text-emerald-900/70 font-semibold' : theme.subColor} truncate">
             ${p.unitPriceText || store.branch}
           </div>
+
+          ${actionBtnHtml}
         </div>
       `;
     }).join('');
@@ -628,13 +691,24 @@ function renderCards(cards) {
       <!-- Alternativas -->
       ${alternativesHtml}
 
-      <!-- Botón Agregar a Canasta -->
-      <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
+      <!-- Botón Agregar a Canasta y Link a MELI -->
+      <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
         <div class="text-xs text-slate-500 font-medium">
           ${cheapest ? `Mejor opción: <strong class="text-slate-800">${cheapest.name}</strong>` : ''}
         </div>
 
-        <div>
+        <div class="flex items-center gap-2">
+          <!-- Botón directo para abrir en la App de Mercado Libre / Ver más vendedores -->
+          <a href="${card.prices.mercadolibre?.url || getMeliSearchUrl(card.title, card.brand)}"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 hover:border-amber-400 font-extrabold text-[11px] px-2.5 py-1.5 rounded-xl shadow-2xs transition active:scale-95 flex items-center gap-1.5"
+             title="Abrir en la App de Mercado Libre para ver todos los vendedores y opciones de envío">
+            <img src="/logos/mercadolibre.svg" alt="MELI" class="h-3.5 w-3.5 object-contain" />
+            <span>Ver en MELI</span>
+            <svg class="w-3 h-3 text-amber-800 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+          </a>
+
           ${cartQty > 0 ? `
             <div class="flex items-center gap-2 bg-brand-50 border border-brand-200 rounded-xl px-2 py-1">
               <button onclick="changeCartItemQty('${card.id}', -1)" class="w-6 h-6 rounded-lg bg-white border border-brand-300 text-brand-700 font-black text-xs hover:bg-brand-100 transition active:scale-95">-</button>
@@ -888,14 +962,15 @@ function shareListWhatsApp() {
       { name: 'Golópolis (Las Flores)', price: pGolo },
       { name: 'Actual (Las Flores)', price: pAct },
       { name: 'Día%', price: pDia },
-      { name: 'Mercado Libre (Full ⚡)', price: pMeli }
+      { name: 'Mercado Libre (Full ⚡)', price: pMeli, url: item.prices.mercadolibre?.url }
     ].filter(o => o.price !== null && o.price > 0);
 
     opts.sort((a, b) => a.price - b.price);
     if (opts.length > 0) {
       const best = opts[0];
       totalOptimo += best.price * qty;
-      split[best.name].push(`  • ${qty}x ${item.title} - ${formatMoney(best.price * qty)}`);
+      const meliLink = (best.url && best.name.includes('Mercado Libre')) ? `\n    📲 Comprar en MELI: ${best.url}` : '';
+      split[best.name].push(`  • ${qty}x ${item.title} - ${formatMoney(best.price * qty)}${meliLink}`);
     }
   });
 
