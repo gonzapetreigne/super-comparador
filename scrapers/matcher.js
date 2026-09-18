@@ -234,7 +234,7 @@ export function matchProducts(golopolisProducts = [], actualProducts = [], diaPr
   }
 
   // Build unified comparison cards
-  const cards = matchedGroups.map(group => {
+  let cards = matchedGroups.map(group => {
     // Pick the most descriptive title & image
     const mainProduct = group.products[0];
     const title = mainProduct.title;
@@ -277,7 +277,7 @@ export function matchProducts(golopolisProducts = [], actualProducts = [], diaPr
     });
 
     // Determine cheapest store among available prices
-    const validEntries = Object.entries(prices).filter(([_, info]) => info && info.price > 0);
+    const validEntries = Object.entries(prices).filter(([_, info]) => info && info.price > 0 && info.available !== false);
     validEntries.sort((a, b) => a[1].price - b[1].price);
 
     const minPrice = validEntries.length > 0 ? validEntries[0][1].price : 0;
@@ -313,6 +313,9 @@ export function matchProducts(golopolisProducts = [], actualProducts = [], diaPr
       cheaperAlternatives: []
     };
   });
+
+  // Filter out any card that has zero available stores
+  cards = cards.filter(card => card.storeCount > 0);
 
   // Calculate cheaper alternatives for cards that are missing stores or have higher prices
   for (const card of cards) {

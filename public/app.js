@@ -360,7 +360,11 @@ async function fetchMeliBackground(query, searchId) {
 // Render Comparison Cards
 function renderCards(cards) {
   const container = document.getElementById('resultsContainer');
+  const noResultsState = document.getElementById('noResultsState');
+  const totalCardsCountEl = document.getElementById('totalCardsCount');
   container.innerHTML = '';
+
+  let visibleCount = 0;
 
   cards.forEach(card => {
     // Determine active stores based on settings (e.g. Meli Full toggle)
@@ -441,12 +445,19 @@ function renderCards(cards) {
 
     // Recalculate cheapest with current promo rules
     const availableStores = stores
-      .filter(s => s.data && s.data.price > 0)
+      .filter(s => s.data && s.data.price > 0 && s.data.available !== false)
       .map(s => ({
         ...s,
         effectivePrice: getEffectivePrice(s.id, s.data.price)
       }))
       .sort((a, b) => a.effectivePrice - b.effectivePrice);
+
+    // If no store has this product available, do NOT display the card at all
+    if (availableStores.length === 0) {
+      return;
+    }
+
+    visibleCount++;
 
     const cheapest = availableStores.length > 0 ? availableStores[0] : null;
     const highest = availableStores.length > 1 ? availableStores[availableStores.length - 1] : null;
@@ -466,7 +477,7 @@ function renderCards(cards) {
       const p = store.data;
       const theme = store.theme;
 
-      if (!p || p.price <= 0) {
+      if (!p || p.price <= 0 || p.available === false) {
         if (store.id === 'mercadolibre' && state.meliSearching) {
           return `
             <div class="p-2 sm:p-2.5 rounded-xl border border-dashed border-amber-400/60 bg-amber-500/10 flex flex-col justify-between text-center animate-pulse">
@@ -605,6 +616,16 @@ function renderCards(cards) {
 
     container.appendChild(cardEl);
   });
+
+  if (totalCardsCountEl) {
+    totalCardsCountEl.textContent = visibleCount;
+  }
+
+  if (visibleCount === 0) {
+    if (noResultsState) noResultsState.classList.remove('hidden');
+  } else {
+    if (noResultsState) noResultsState.classList.add('hidden');
+  }
 }
 
 // Add Item to Cart
