@@ -365,10 +365,78 @@ function renderCards(cards) {
   cards.forEach(card => {
     // Determine active stores based on settings (e.g. Meli Full toggle)
     const stores = [
-      { id: 'golopolis', name: 'Golópolis', branch: 'Las Flores', color: 'orange', data: card.prices.golopolis },
-      { id: 'actual', name: 'Actual', branch: 'Las Flores', color: 'sky', data: card.prices.actual },
-      { id: 'dia', name: 'Día%', branch: 'Online', color: 'red', data: card.prices.dia },
-      { id: 'mercadolibre', name: 'Mercado Libre', branch: 'Full ⚡', color: 'amber', data: state.promos.meliFull ? card.prices.mercadolibre : null }
+      {
+        id: 'golopolis',
+        name: 'Golópolis',
+        branch: 'Las Flores',
+        logo: '/logos/golopolis.svg',
+        logoClass: 'h-3.5 max-w-[36px] object-contain',
+        theme: {
+          border: 'border-orange-200/90 hover:border-orange-300',
+          bg: 'bg-gradient-to-b from-orange-50/70 to-amber-50/30',
+          nameColor: 'text-orange-950',
+          priceColor: 'text-slate-900',
+          subColor: 'text-orange-900/60',
+          unavailBorder: 'border-dashed border-orange-200/70',
+          unavailBg: 'bg-orange-50/25',
+          unavailText: 'text-orange-900/70'
+        },
+        data: card.prices.golopolis
+      },
+      {
+        id: 'actual',
+        name: 'Actual',
+        branch: 'Las Flores',
+        logo: '/logos/actual.png',
+        logoClass: 'h-3.5 w-3.5 object-contain rounded-full shadow-xs',
+        theme: {
+          border: 'border-sky-200/90 hover:border-sky-300',
+          bg: 'bg-gradient-to-b from-sky-50/70 to-blue-50/30',
+          nameColor: 'text-sky-950',
+          priceColor: 'text-slate-900',
+          subColor: 'text-sky-900/60',
+          unavailBorder: 'border-dashed border-sky-200/70',
+          unavailBg: 'bg-sky-50/25',
+          unavailText: 'text-sky-900/70'
+        },
+        data: card.prices.actual
+      },
+      {
+        id: 'dia',
+        name: 'Día%',
+        branch: 'Online',
+        logo: '/logos/dia.svg',
+        logoClass: 'h-3.5 object-contain rounded shadow-xs',
+        theme: {
+          border: 'border-red-200/90 hover:border-red-300',
+          bg: 'bg-gradient-to-b from-red-50/70 to-rose-50/30',
+          nameColor: 'text-red-950',
+          priceColor: 'text-slate-900',
+          subColor: 'text-red-900/60',
+          unavailBorder: 'border-dashed border-red-200/70',
+          unavailBg: 'bg-red-50/25',
+          unavailText: 'text-red-900/70'
+        },
+        data: card.prices.dia
+      },
+      {
+        id: 'mercadolibre',
+        name: 'Mercado Libre',
+        branch: 'Full ⚡',
+        logo: '/logos/mercadolibre.svg',
+        logoClass: 'h-4 w-4 object-contain',
+        theme: {
+          border: 'border-amber-200/90 hover:border-amber-300',
+          bg: 'bg-gradient-to-b from-amber-50/70 to-yellow-50/30',
+          nameColor: 'text-amber-950',
+          priceColor: 'text-slate-900',
+          subColor: 'text-amber-900/60',
+          unavailBorder: 'border-dashed border-amber-200/70',
+          unavailBg: 'bg-amber-50/25',
+          unavailText: 'text-amber-900/70'
+        },
+        data: state.promos.meliFull ? card.prices.mercadolibre : null
+      }
     ];
 
     // Recalculate cheapest with current promo rules
@@ -396,24 +464,32 @@ function renderCards(cards) {
     // Store comparison pills HTML
     const storePillsHtml = stores.map(store => {
       const p = store.data;
+      const theme = store.theme;
+
       if (!p || p.price <= 0) {
         if (store.id === 'mercadolibre' && state.meliSearching) {
           return `
-            <div class="p-2 rounded-xl border border-dashed border-amber-400/50 bg-amber-500/5 flex flex-col justify-between text-center animate-pulse">
-              <span class="text-[10px] font-bold text-amber-500">${store.name}</span>
-              <span class="text-[11px] text-amber-500 my-1 font-semibold flex items-center justify-center gap-1">
-                <svg class="animate-spin h-3 w-3 inline text-amber-400" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+            <div class="p-2 sm:p-2.5 rounded-xl border border-dashed border-amber-400/60 bg-amber-500/10 flex flex-col justify-between text-center animate-pulse">
+              <div class="flex items-center justify-between gap-1 mb-1">
+                <span class="text-[10px] sm:text-[11px] font-extrabold text-amber-900 truncate">${store.name}</span>
+                <img src="${store.logo}" alt="${store.name}" class="${store.logoClass} opacity-80" onerror="this.style.display='none'" />
+              </div>
+              <span class="text-[11px] text-amber-600 my-1 font-semibold flex items-center justify-center gap-1">
+                <svg class="animate-spin h-3 w-3 inline text-amber-500" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
                 Buscando...
               </span>
-              <span class="text-[9px] text-amber-400/70">Full ⚡</span>
+              <span class="text-[9px] text-amber-600/70">Full ⚡</span>
             </div>
           `;
         }
         return `
-          <div class="p-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 flex flex-col justify-between opacity-60 text-center">
-            <span class="text-[10px] font-bold text-slate-500">${store.name}</span>
-            <span class="text-xs text-slate-400 my-1.5 font-medium">No disponible</span>
-            <span class="text-[9px] text-slate-300">-</span>
+          <div class="p-2 sm:p-2.5 rounded-xl border ${theme.unavailBorder} ${theme.unavailBg} flex flex-col justify-between opacity-75 text-center transition">
+            <div class="flex items-center justify-between gap-1 mb-1">
+              <span class="text-[10px] sm:text-[11px] font-bold ${theme.unavailText} truncate">${store.name}</span>
+              <img src="${store.logo}" alt="${store.name}" class="${store.logoClass} opacity-60" onerror="this.style.display='none'" />
+            </div>
+            <span class="text-[11px] sm:text-xs text-slate-400 my-1 font-medium">No disponible</span>
+            <span class="text-[9px] text-slate-400/60">-</span>
           </div>
         `;
       }
@@ -422,14 +498,18 @@ function renderCards(cards) {
       const isWinner = cheapest && cheapest.id === store.id && availableStores.length > 1;
 
       return `
-        <div class="p-2 rounded-xl border ${isWinner ? 'border-emerald-500 bg-emerald-50/70 shadow-sm' : 'border-slate-200 bg-slate-50/40'} flex flex-col justify-between transition">
-          <div class="flex items-center justify-between">
-            <span class="text-[10px] font-extrabold ${isWinner ? 'text-emerald-800' : 'text-slate-700'}">${store.name}</span>
-            ${isWinner ? '<span class="text-[9px] bg-emerald-600 text-white font-black px-1.5 py-0.2 rounded-full">MEJOR</span>' : ''}
+        <div class="p-2 sm:p-2.5 rounded-xl border ${isWinner ? 'border-2 border-emerald-500 bg-gradient-to-b from-emerald-50/90 to-emerald-50/40 shadow-sm ring-1 ring-emerald-500/30' : `border ${theme.border} ${theme.bg}`} flex flex-col justify-between transition hover:shadow-xs">
+          <!-- Header: Nombre y Logo en la esquina superior derecha -->
+          <div class="flex items-center justify-between gap-1 mb-1">
+            <span class="text-[10px] sm:text-[11px] font-black truncate ${isWinner ? 'text-emerald-950' : theme.nameColor}">${store.name}</span>
+            <div class="flex items-center gap-1 shrink-0">
+              ${isWinner ? '<span class="text-[8px] bg-emerald-600 text-white font-black px-1.5 py-0.5 rounded-full uppercase tracking-tight shadow-xs">MEJOR</span>' : ''}
+              <img src="${store.logo}" alt="${store.name}" class="${store.logoClass} drop-shadow-xs" onerror="this.style.display='none'" />
+            </div>
           </div>
           
           <div class="my-1">
-            <div class="text-sm font-black ${isWinner ? 'text-emerald-700 font-black' : 'text-slate-900'}">
+            <div class="text-sm sm:text-base font-black ${isWinner ? 'text-emerald-700 font-black' : theme.priceColor}">
               ${formatMoney(effPrice)}
             </div>
             ${p.originalPrice && p.originalPrice > p.price ? `
@@ -439,7 +519,7 @@ function renderCards(cards) {
             ` : '')}
           </div>
 
-          <div class="text-[10px] text-slate-500 truncate">
+          <div class="text-[10px] ${isWinner ? 'text-emerald-900/70 font-semibold' : theme.subColor} truncate">
             ${p.unitPriceText || store.branch}
           </div>
         </div>

@@ -237,24 +237,36 @@
         
         <!-- Indicadores por tienda -->
         <div class="grid grid-cols-4 gap-2 text-center text-xs">
-          <div class="bg-orange-950/40 border border-orange-500/30 rounded-xl p-1.5">
-            <div class="font-black text-orange-400 text-xs">Golópolis</div>
-            <div class="text-[11px] text-orange-300/80 font-medium">Las Flores</div>
+          <div class="bg-orange-950/40 border border-orange-500/30 rounded-xl p-1.5 flex flex-col items-center justify-between">
+            <div class="flex items-center justify-center gap-1 w-full">
+              <img src="/logos/golopolis.svg" alt="Golópolis" class="h-3 max-w-[28px] object-contain shrink-0" onerror="this.style.display='none'">
+              <span class="font-black text-orange-400 text-[11px] truncate">Golópolis</span>
+            </div>
+            <div class="text-[10px] text-orange-300/80 font-medium">Las Flores</div>
             <div id="countGolo" class="text-xs font-black text-white mt-0.5">0</div>
           </div>
-          <div class="bg-sky-950/40 border border-sky-500/30 rounded-xl p-1.5">
-            <div class="font-black text-sky-400 text-xs">Actual</div>
-            <div class="text-[11px] text-sky-300/80 font-medium">Las Flores</div>
+          <div class="bg-sky-950/40 border border-sky-500/30 rounded-xl p-1.5 flex flex-col items-center justify-between">
+            <div class="flex items-center justify-center gap-1 w-full">
+              <img src="/logos/actual.png" alt="Actual" class="h-3 w-3 object-contain rounded-full shrink-0" onerror="this.style.display='none'">
+              <span class="font-black text-sky-400 text-[11px] truncate">Actual</span>
+            </div>
+            <div class="text-[10px] text-sky-300/80 font-medium">Las Flores</div>
             <div id="countActual" class="text-xs font-black text-white mt-0.5">0</div>
           </div>
-          <div class="bg-red-950/40 border border-red-500/30 rounded-xl p-1.5">
-            <div class="font-black text-red-400 text-xs">Día%</div>
-            <div class="text-[11px] text-red-300/80 font-medium">Online</div>
+          <div class="bg-red-950/40 border border-red-500/30 rounded-xl p-1.5 flex flex-col items-center justify-between">
+            <div class="flex items-center justify-center gap-1 w-full">
+              <img src="/logos/dia.svg" alt="Día%" class="h-3 object-contain rounded shrink-0" onerror="this.style.display='none'">
+              <span class="font-black text-red-400 text-[11px] truncate">Día%</span>
+            </div>
+            <div class="text-[10px] text-red-300/80 font-medium">Online</div>
             <div id="countDia" class="text-xs font-black text-white mt-0.5">0</div>
           </div>
-          <div class="bg-amber-950/40 border border-amber-500/30 rounded-xl p-1.5">
-            <div class="font-black text-amber-400 text-xs">M. Libre</div>
-            <div class="text-[11px] text-amber-300/80 font-medium">Full ⚡</div>
+          <div class="bg-amber-950/40 border border-amber-500/30 rounded-xl p-1.5 flex flex-col items-center justify-between">
+            <div class="flex items-center justify-center gap-1 w-full">
+              <img src="/logos/mercadolibre.svg" alt="Meli" class="h-3.5 w-3.5 object-contain shrink-0" onerror="this.style.display='none'">
+              <span class="font-black text-amber-400 text-[11px] truncate">M. Libre</span>
+            </div>
+            <div class="text-[10px] text-amber-300/80 font-medium">Full ⚡</div>
             <div id="countMeli" class="text-xs font-black text-white mt-0.5">0</div>
           </div>
         </div>
