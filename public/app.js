@@ -372,14 +372,14 @@ function renderCards(cards) {
         logo: '/logos/golopolis.svg',
         logoClass: 'h-3.5 max-w-[36px] object-contain',
         theme: {
-          border: 'border-orange-200/90 hover:border-orange-300',
-          bg: 'bg-gradient-to-b from-orange-50/70 to-amber-50/30',
-          nameColor: 'text-orange-950',
+          border: 'border-lime-300/90 hover:border-lime-400',
+          bg: 'bg-gradient-to-b from-lime-50/80 to-emerald-50/40',
+          nameColor: 'text-emerald-950',
           priceColor: 'text-slate-900',
-          subColor: 'text-orange-900/60',
-          unavailBorder: 'border-dashed border-orange-200/70',
-          unavailBg: 'bg-orange-50/25',
-          unavailText: 'text-orange-900/70'
+          subColor: 'text-emerald-900/70',
+          unavailBorder: 'border-dashed border-lime-300/70',
+          unavailBg: 'bg-lime-50/30',
+          unavailText: 'text-emerald-900/70'
         },
         data: card.prices.golopolis
       },
@@ -390,14 +390,14 @@ function renderCards(cards) {
         logo: '/logos/actual.png',
         logoClass: 'h-3.5 w-3.5 object-contain rounded-full shadow-xs',
         theme: {
-          border: 'border-sky-200/90 hover:border-sky-300',
-          bg: 'bg-gradient-to-b from-sky-50/70 to-blue-50/30',
-          nameColor: 'text-sky-950',
+          border: 'border-orange-200/90 hover:border-orange-300',
+          bg: 'bg-gradient-to-b from-orange-50/70 to-amber-50/30',
+          nameColor: 'text-orange-950',
           priceColor: 'text-slate-900',
-          subColor: 'text-sky-900/60',
-          unavailBorder: 'border-dashed border-sky-200/70',
-          unavailBg: 'bg-sky-50/25',
-          unavailText: 'text-sky-900/70'
+          subColor: 'text-orange-900/60',
+          unavailBorder: 'border-dashed border-orange-200/70',
+          unavailBg: 'bg-orange-50/25',
+          unavailText: 'text-orange-900/70'
         },
         data: card.prices.actual
       },
