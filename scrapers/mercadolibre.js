@@ -61,7 +61,7 @@ export async function searchMercadoLibre(searchTerm) {
     try {
       const token = await getMeliAccessToken();
       if (token) {
-        console.log(`[Mercado Libre API] Consultando API Oficial para "${searchTerm}"...`);
+        console.log(`[Mercado Libre API] Token activo (len: ${token.length}, prefix: ${token.slice(0, 6)}...). Consultando para "${searchTerm}"...`);
         const apiUrl = `https://api.mercadolibre.com/sites/MLA/search?shipping_mode=fulfillment&q=${encodeURIComponent(searchTerm)}`;
         const apiRes = await fetch(apiUrl, {
           headers: {
@@ -76,7 +76,8 @@ export async function searchMercadoLibre(searchTerm) {
           console.log(`[Mercado Libre API] Éxito: ${prods.length} productos obtenidos.`);
           if (prods.length > 0) return prods;
         } else {
-          console.warn('[Mercado Libre API] Error status:', apiRes.status);
+          const errText = await apiRes.text();
+          console.warn('[Mercado Libre API] Error status:', apiRes.status, 'Detalle:', errText);
         }
       }
     } catch (apiErr) {
@@ -115,7 +116,7 @@ export async function searchMercadoLibre(searchTerm) {
         const scraperUrl = `http://api.scraperapi.com?api_key=${process.env.SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}`;
         
         const response = await fetch(scraperUrl, {
-          signal: AbortSignal.timeout(20000)
+          signal: AbortSignal.timeout(10000)
         });
 
         if (response.ok) {
