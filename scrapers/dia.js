@@ -70,7 +70,7 @@ export async function searchDia(searchTerm) {
         ean: ean,
         image: image,
         available: (offer.AvailableQuantity === undefined || offer.AvailableQuantity > 0),
-        url: p.link ? `https://diaonline.supermercadosdia.com.ar${p.link}` : 'https://diaonline.supermercadosdia.com.ar/'
+        url: p.link ? (p.link.startsWith('http') ? p.link : `https://diaonline.supermercadosdia.com.ar${p.link}`) : 'https://diaonline.supermercadosdia.com.ar/'
       };
     });
   } catch (error) {
