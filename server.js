@@ -25,6 +25,7 @@ const searchCache = new Map();
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 app.get('/api/search', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   const query = (req.query.q || '').trim();
   if (!query || query.length < 2) {
     return res.status(400).json({ error: 'Debes ingresar un término de búsqueda válido (mínimo 2 caracteres).' });
