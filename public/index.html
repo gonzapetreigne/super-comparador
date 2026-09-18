@@ -637,14 +637,17 @@
     </div>
   </nav>
 
-  <!-- App Script -->
-  <script src="/app.js"></script>
+  <!-- App Script with cache-busting -->
+  <script src="/app.js?v=2.3.0"></script>
   <script>
-    // Register PWA service worker
+    // Register PWA service worker with auto-update
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then(reg => console.log('SW registrado exitosamente'))
+        navigator.serviceWorker.register('/sw.js?v=3')
+          .then(reg => {
+            reg.update();
+            console.log('SW registrado y actualizado a v3');
+          })
           .catch(err => console.log('Fallo registro SW:', err));
       });
     }

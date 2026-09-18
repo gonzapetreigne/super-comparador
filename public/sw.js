@@ -1,26 +1,34 @@
-const CACHE_NAME = 'super-comparador-v1';
+const CACHE_NAME = 'super-comparador-v3';
 const ASSETS_TO_CACHE = [
   '/',
-  '/index.html',
-  '/app.js',
   '/manifest.json',
-  '/icon.svg'
+  '/icon.svg',
+  '/logo.png',
+  '/logos/golopolis.svg',
+  '/logos/actual.png',
+  '/logos/dia.svg',
+  '/logos/mercadolibre.svg'
 ];
 
 self.addEventListener('install', event => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
       return cache.addAll(ASSETS_TO_CACHE);
     })
   );
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys => {
       return Promise.all(
-        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
+        keys.map(key => {
+          if (key !== CACHE_NAME) {
+            console.log('[SW] Evicting old cache:', key);
+            return caches.delete(key);
+          }
+        })
       );
     })
   );
@@ -28,12 +36,36 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
-  // Never cache live API search calls
-  if (event.request.url.includes('/api/')) {
+  const url = event.request.url;
+
+  // Never cache live API calls
+  if (url.includes('/api/')) {
     return;
   }
 
-  // Stale-while-revalidate for static shell assets
+  // Network-First for HTML and JavaScript to guarantee instant updates
+  if (
+    event.request.destination === 'script' ||
+    event.request.destination === 'document' ||
+    url.includes('/app.js') ||
+    url.endsWith('.html') ||
+    url.endsWith('/')
+  ) {
+    event.respondWith(
+      fetch(event.request)
+        .then(networkResponse => {
+          if (networkResponse && networkResponse.status === 200) {
+            const copy = networkResponse.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Stale-while-revalidate for images and icons
   event.respondWith(
     caches.match(event.request).then(cachedResponse => {
       const fetchPromise = fetch(event.request).then(networkResponse => {

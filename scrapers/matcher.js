@@ -23,51 +23,71 @@ function isKitOrCombo(title) {
   return str.includes('kit') || str.includes('combo') || str.includes('bombilla') || str.includes('lata yerbera') || str.includes('termo');
 }
 
-// Extract measure/quantity from product title (e.g. "1kg", "900 ml", "1.5 l", "500gr", "pack x 10")
+// Extract measure/quantity from product title (e.g. "1kg", "900 ml", "1.5 l", "500gr", "pack x 10", "x 36 unidades")
 function extractQuantity(title) {
   if (!title) return null;
   const str = title.toLowerCase().replace(/,/g, '.');
 
-  // Check for pack multiplier, e.g. "pack de 10", "pack x 5", "x 10 u", "x5 unidades"
+  // Multi-pack detection (e.g. "pack x 6", "pack de 12", "combo x 2", "pack de 3")
   let multiplier = 1;
-  const packMatch = str.match(/(?:pack\s*(?:de|x)?\s*(\d+)|(?:x|\*)\s*(\d+)\s*(?:u|unid|unidades|paq))/i);
+  const packMatch = str.match(/\b(?:pack|combo|promo)\s*(?:de|x)?\s*(\d+)\b/i) ||
+                    str.match(/\b(\d+)\s*(?:pack|unidades\s*x|latas\s*x|botellas\s*x)\b/i);
   if (packMatch) {
-    multiplier = parseInt(packMatch[1] || packMatch[2], 10) || 1;
+    const pVal = parseInt(packMatch[1], 10);
+    if (pVal > 1 && pVal <= 48) multiplier = pVal;
   }
 
   // Match liters (e.g. 1.5l, 1l, 500ml, 750 cc)
-  const mlMatch = str.match(/(\d+(?:\.\d+)?)\s*(?:ml|cc)/);
+  const mlMatch = str.match(/(\d+(?:\.\d+)?)\s*(?:ml|cc)\b/);
   if (mlMatch) {
     const val = parseFloat(mlMatch[1]) * multiplier;
     return { value: val, unit: 'ml', standardUnit: 'l', standardRatio: val / 1000, isPack: multiplier > 1, multiplier };
   }
 
-  const lMatch = str.match(/(\d+(?:\.\d+)?)\s*(?:l|lt|litro|litros)/);
+  const lMatch = str.match(/(\d+(?:\.\d+)?)\s*(?:l|lt|lts|litro|litros)\b/);
   if (lMatch) {
     const val = parseFloat(lMatch[1]) * multiplier;
     return { value: val, unit: 'l', standardUnit: 'l', standardRatio: val, isPack: multiplier > 1, multiplier };
   }
 
   // Match grams/kilos (e.g. 1kg, 500g, 400 grs)
-  const kgMatch = str.match(/(\d+(?:\.\d+)?)\s*(?:kg|kgr|kilo|kilos)/);
+  const kgMatch = str.match(/(\d+(?:\.\d+)?)\s*(?:kg|kgr|kilo|kilos|1k|2k)\b/);
   if (kgMatch) {
     const val = parseFloat(kgMatch[1]) * multiplier;
     return { value: val, unit: 'kg', standardUnit: 'kg', standardRatio: val, isPack: multiplier > 1, multiplier };
   }
 
-  const gMatch = str.match(/(\d+(?:\.\d+)?)\s*(?:g|gr|grs|gramos)/);
+  const gMatch = str.match(/(\d+(?:\.\d+)?)\s*(?:g|gr|grs|gramos)\b/);
   if (gMatch) {
     const val = parseFloat(gMatch[1]) * multiplier;
     return { value: val, unit: 'g', standardUnit: 'kg', standardRatio: val / 1000, isPack: multiplier > 1, multiplier };
   }
 
-  // Match count / tea bags / units (e.g. 25 saquitos, 50 sobres, 25 ud)
-  const uMatch = str.match(/(\d+)\s*(?:saquitos|saq|sobres|ud|unidades|unid)/);
+  // Match count / tea bags / diapers / units:
+  // e.g. "x 36 unidades", "x36u", "x36", "36 ud", "36 unidades", "25 saquitos", "50 sobres"
+  const uMatch = str.match(/(?:x|\*)\s*(\d+)\s*(?:u|un|ud|unid|unidades)?\b/) ||
+                 str.match(/(\d+)\s*(?:saquitos|saq|sobres|ud|unidades|unid|panales|toallitas)\b/);
   if (uMatch) {
-    const val = parseInt(uMatch[1], 10) * multiplier;
-    return { value: val, unit: 'ud', standardUnit: 'ud', standardRatio: val, isPack: multiplier > 1, multiplier };
+    const count = parseInt(uMatch[1], 10);
+    if (count > 0 && count < 500) {
+      const val = count * (multiplier > 1 ? multiplier : 1);
+      return { value: val, unit: 'ud', standardUnit: 'ud', standardRatio: val, isPack: multiplier > 1, multiplier };
+    }
   }
 
+  return null;
+}
+
+// Extract diaper size (RN, P, M, G, XG, XXG, XXXG)
+function extractDiaperSize(str) {
+  const s = cleanString(str);
+  if (!s.includes('panal') && !s.includes('huggies') && !s.includes('pampers') && !s.includes('babysec')) return null;
+  const m = s.match(/\b(rn|recien nacido|xxxg|xxg|xg|g|m|p)\b/);
+  if (m) {
+    let size = m[1];
+    if (size === 'recien nacido') size = 'rn';
+    return size;
+  }
   return null;
 }
 
@@ -104,6 +124,11 @@ function matchTwoProducts(p1, p2) {
     qtyMatch = true;
   }
 
+  // Diaper size matching: do not match Talle M with Talle XG
+  const size1 = extractDiaperSize(p1.title);
+  const size2 = extractDiaperSize(p2.title);
+  if (size1 && size2 && size1 !== size2) return false;
+
   const t1 = cleanString(p1.title);
   const t2 = cleanString(p2.title);
 
@@ -121,6 +146,14 @@ function matchTwoProducts(p1, p2) {
   const isDesc1 = t1.includes('descremada') || t1.includes('desnatada');
   const isDesc2 = t2.includes('descremada') || t2.includes('desnatada');
   if (isDesc1 !== isDesc2) return false;
+
+  // Tuna: do not mix atun al natural with atun en aceite
+  const isAceite1 = t1.includes('aceite');
+  const isNatural1 = t1.includes('natural') || t1.includes('agua');
+  const isAceite2 = t2.includes('aceite');
+  const isNatural2 = t2.includes('natural') || t2.includes('agua');
+  if (isAceite1 && !isNatural1 && isNatural2 && !isAceite2) return false;
+  if (isNatural1 && !isAceite1 && isAceite2 && !isNatural2) return false;
 
   const b1 = cleanString(p1.brand);
   const b2 = cleanString(p2.brand);

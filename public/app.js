@@ -99,11 +99,19 @@ function loadSavedData() {
     }
     const storedPromos = localStorage.getItem('super_promos_v1');
     if (storedPromos) {
-      state.promos = { ...state.promos, ...JSON.parse(storedPromos) };
-      document.getElementById('toggleDNI').checked = state.promos.cuentaDni;
-      document.getElementById('toggleClubDia').checked = state.promos.clubDia;
-      document.getElementById('toggleMeliFull').checked = state.promos.meliFull;
+      try {
+        const parsed = JSON.parse(storedPromos);
+        state.promos.cuentaDni = !!parsed.cuentaDni;
+        state.promos.clubDia = !!parsed.clubDia;
+      } catch (e) {}
+      const dniEl = document.getElementById('toggleDNI');
+      if (dniEl) dniEl.checked = state.promos.cuentaDni;
+      const diaEl = document.getElementById('toggleClubDia');
+      if (diaEl) diaEl.checked = state.promos.clubDia;
     }
+    state.promos.meliFull = true;
+    const meliToggle = document.getElementById('toggleMeliFull');
+    if (meliToggle) meliToggle.checked = true;
   } catch (e) {
     console.error('Error cargando datos locales:', e);
   }
@@ -468,7 +476,7 @@ function renderCards(cards) {
           unavailBg: 'bg-amber-50/25',
           unavailText: 'text-amber-900/70'
         },
-        data: state.promos.meliFull ? card.prices.mercadolibre : null
+        data: card.prices.mercadolibre
       }
     ];
 
@@ -749,7 +757,7 @@ function renderCart() {
     const pGolo = item.prices.golopolis?.price ? getEffectivePrice('golopolis', item.prices.golopolis.price) : null;
     const pAct = item.prices.actual?.price ? getEffectivePrice('actual', item.prices.actual.price) : null;
     const pDia = item.prices.dia?.price ? getEffectivePrice('dia', item.prices.dia.price) : null;
-    const pMeli = (state.promos.meliFull && item.prices.mercadolibre?.price) ? getEffectivePrice('mercadolibre', item.prices.mercadolibre.price) : null;
+    const pMeli = item.prices.mercadolibre?.price ? getEffectivePrice('mercadolibre', item.prices.mercadolibre.price) : null;
 
     if (pGolo) { totalGolo += pGolo * qty; goloCount++; }
     if (pAct) { totalActual += pAct * qty; actualCount++; }
@@ -874,7 +882,7 @@ function shareListWhatsApp() {
     const pGolo = item.prices.golopolis?.price ? getEffectivePrice('golopolis', item.prices.golopolis.price) : null;
     const pAct = item.prices.actual?.price ? getEffectivePrice('actual', item.prices.actual.price) : null;
     const pDia = item.prices.dia?.price ? getEffectivePrice('dia', item.prices.dia.price) : null;
-    const pMeli = (state.promos.meliFull && item.prices.mercadolibre?.price) ? getEffectivePrice('mercadolibre', item.prices.mercadolibre.price) : null;
+    const pMeli = item.prices.mercadolibre?.price ? getEffectivePrice('mercadolibre', item.prices.mercadolibre.price) : null;
 
     const opts = [
       { name: 'Golópolis (Las Flores)', price: pGolo },
