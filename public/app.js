@@ -112,11 +112,29 @@ function setupEventListeners() {
     }
   });
 
-  clearBtn.addEventListener('click', () => {
+  const resetToHome = () => {
     searchInput.value = '';
     clearBtn.classList.add('hidden');
+    state.currentResults = [];
+    document.getElementById('resultsContainer').innerHTML = '';
+    document.getElementById('searchStatsBar').classList.add('hidden');
+    document.getElementById('noResultsState').classList.add('hidden');
+    document.getElementById('loadingState').classList.add('hidden');
+    document.getElementById('emptyState').classList.remove('hidden');
+    const heroBanner = document.getElementById('heroBannerCard');
+    if (heroBanner) heroBanner.classList.remove('hidden');
+    switchTab('search');
+  };
+
+  clearBtn.addEventListener('click', () => {
+    resetToHome();
     searchInput.focus();
   });
+
+  const headerHomeBtn = document.getElementById('headerHomeBtn');
+  if (headerHomeBtn) {
+    headerHomeBtn.addEventListener('click', resetToHome);
+  }
 
   // Quick Chips
   document.querySelectorAll('.quick-chip').forEach(chip => {
@@ -187,6 +205,9 @@ function setupEventListeners() {
 async function performSearch(query) {
   switchTab('search');
   
+  const heroBanner = document.getElementById('heroBannerCard');
+  if (heroBanner) heroBanner.classList.add('hidden');
+
   const emptyState = document.getElementById('emptyState');
   const loadingState = document.getElementById('loadingState');
   const resultsContainer = document.getElementById('resultsContainer');
@@ -208,6 +229,7 @@ async function performSearch(query) {
     if (!res.ok) {
       alert(data.error || 'Error al buscar');
       emptyState.classList.remove('hidden');
+      if (heroBanner) heroBanner.classList.remove('hidden');
       return;
     }
 
@@ -251,6 +273,7 @@ async function performSearch(query) {
   } catch (err) {
     loadingState.classList.add('hidden');
     emptyState.classList.remove('hidden');
+    if (heroBanner) heroBanner.classList.remove('hidden');
     alert('Fallo de conexión al consultar las tiendas.');
   }
 }
@@ -732,9 +755,9 @@ function switchTab(tabId) {
     if (btn) {
       if (t === tabId) {
         btn.classList.remove('text-slate-400');
-        btn.classList.add('text-brand-600');
+        btn.classList.add('text-cyan-400');
       } else {
-        btn.classList.remove('text-brand-600');
+        btn.classList.remove('text-cyan-400');
         btn.classList.add('text-slate-400');
       }
     }

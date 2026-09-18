@@ -4,15 +4,20 @@
   "description": "Comparador de precios en vivo: Golópolis, Actual, Día% y Mercado Libre Full en Las Flores",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f8fafc",
-  "theme_color": "#10b981",
+  "background_color": "#071924",
+  "theme_color": "#071924",
   "orientation": "portrait",
   "icons": [
     {
+      "src": "/logo.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
       "src": "/icon.svg",
       "sizes": "192x192 512x512",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "type": "image/svg+xml"
     }
   ]
 }
