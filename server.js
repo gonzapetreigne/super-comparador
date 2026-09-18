@@ -33,41 +33,44 @@ app.get('/api/search', async (req, res) => {
 
   const cacheKey = query.toLowerCase();
   const cached = searchCache.get(cacheKey);
-  if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+
+  // If full 4-store result is already cached, return it directly!
+  if (cached && cached.hasFullResult && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
     return res.json({ ...cached.data, fromCache: true });
   }
 
-  console.log(`[Search] Consultando en tiempo real: "${query}" en 4 tiendas...`);
+  console.log(`[Search Fast] Consultando supermercados locales: "${query}"...`);
   const startTime = Date.now();
 
   try {
-    // Run all 4 scrapers in parallel
-    const [golopolisRes, actualRes, diaRes, meliRes] = await Promise.allSettled([
+    // Run the 3 fast local scrapers in parallel
+    const [golopolisRes, actualRes, diaRes] = await Promise.allSettled([
       searchGolopolis(query),
       searchActual(query),
-      searchDia(query),
-      searchMercadoLibre(query)
+      searchDia(query)
     ]);
 
     const golopolisProds = golopolisRes.status === 'fulfilled' ? golopolisRes.value : [];
     const actualProds = actualRes.status === 'fulfilled' ? actualRes.value : [];
     const diaProds = diaRes.status === 'fulfilled' ? diaRes.value : [];
-    const meliProds = meliRes.status === 'fulfilled' ? meliRes.value : [];
 
-    console.log(`[Search] Resultados: Golópolis (${golopolisProds.length}), Actual (${actualProds.length}), Día (${diaProds.length}), Mercado Libre (${meliProds.length})`);
+    console.log(`[Search Fast] Resultados locales: Golópolis (${golopolisProds.length}), Actual (${actualProds.length}), Día (${diaProds.length}) en ${Date.now() - startTime}ms`);
 
-    // Match and normalize across all 4 stores
-    const matchedResult = matchProducts(golopolisProds, actualProds, diaProds, meliProds, query);
+    // Match across the 3 local stores
+    const matchedResult = matchProducts(golopolisProds, actualProds, diaProds, [], query);
     const elapsedMs = Date.now() - startTime;
-
-    const meliBlocked = meliProds.blockedByBot === true;
 
     const responseData = {
       query: query,
       elapsedMs: elapsedMs,
       cards: matchedResult.cards,
       totalCards: matchedResult.totalCards,
-      counts: matchedResult.counts,
+      counts: {
+        golopolis: golopolisProds.length,
+        actual: actualProds.length,
+        dia: diaProds.length,
+        mercadolibre: 0
+      },
       stores: {
         golopolis: { name: 'Golópolis', branch: 'Las Flores', count: golopolisProds.length },
         actual: { name: 'Actual', branch: 'Las Flores', count: actualProds.length },
@@ -75,19 +78,97 @@ app.get('/api/search', async (req, res) => {
         mercadolibre: {
           name: 'Mercado Libre',
           branch: 'Full Súper ⚡',
-          count: meliProds.length,
-          blockedByBot: meliBlocked
+          count: 0,
+          pending: true
         }
       },
+      meliPending: true,
       timestamp: new Date().toISOString()
     };
 
-    searchCache.set(cacheKey, { timestamp: Date.now(), data: responseData });
+    // Cache local data for subsequent Meli merge
+    searchCache.set(cacheKey, {
+      golo: golopolisProds,
+      actual: actualProds,
+      dia: diaProds,
+      hasFullResult: false,
+      data: responseData,
+      timestamp: Date.now()
+    });
 
     return res.json(responseData);
   } catch (error) {
-    console.error('[Search] Error general:', error);
+    console.error('[Search Fast] Error general:', error);
     return res.status(500).json({ error: 'Error al consultar las tiendas', details: error.message });
+  }
+});
+
+// Progressive async endpoint for Mercado Libre
+app.get('/api/search/meli', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  const query = (req.query.q || '').trim();
+  if (!query || query.length < 2) {
+    return res.status(400).json({ error: 'Debes ingresar un término de búsqueda válido.' });
+  }
+
+  const cacheKey = query.toLowerCase();
+  console.log(`[Search Meli Async] Consultando Mercado Libre para: "${query}"...`);
+  const startTime = Date.now();
+
+  try {
+    const meliProds = await searchMercadoLibre(query);
+    const elapsedMs = Date.now() - startTime;
+    console.log(`[Search Meli Async] Mercado Libre respondió en ${elapsedMs}ms: ${meliProds.length} productos (bloqueado: ${meliProds.blockedByBot || false})`);
+
+    const cached = searchCache.get(cacheKey) || {};
+    const golo = cached.golo || [];
+    const actual = cached.actual || [];
+    const dia = cached.dia || [];
+
+    // Re-match all 4 stores together
+    const matchedResult = matchProducts(golo, actual, dia, meliProds, query);
+    const meliBlocked = meliProds.blockedByBot === true;
+
+    const responseData = {
+      query: query,
+      elapsedMs: elapsedMs,
+      cards: matchedResult.cards,
+      totalCards: matchedResult.totalCards,
+      counts: {
+        golopolis: golo.length,
+        actual: actual.length,
+        dia: dia.length,
+        mercadolibre: meliProds.length
+      },
+      stores: {
+        golopolis: { name: 'Golópolis', branch: 'Las Flores', count: golo.length },
+        actual: { name: 'Actual', branch: 'Las Flores', count: actual.length },
+        dia: { name: 'Día%', branch: 'Día Online', count: dia.length },
+        mercadolibre: {
+          name: 'Mercado Libre',
+          branch: 'Full Súper ⚡',
+          count: meliProds.length,
+          blockedByBot: meliBlocked,
+          pending: false
+        }
+      },
+      meliProducts: meliProds,
+      timestamp: new Date().toISOString()
+    };
+
+    // Update cache with full 4-store result
+    searchCache.set(cacheKey, {
+      ...cached,
+      meli: meliProds,
+      hasFullResult: true,
+      data: responseData,
+      timestamp: Date.now()
+    });
+
+    return res.json(responseData);
+  } catch (error) {
+    console.error('[Search Meli Async] Error:', error);
+    return res.status(500).json({ error: 'Error al consultar Mercado Libre', details: error.message });
   }
 });
 

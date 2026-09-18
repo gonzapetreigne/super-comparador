@@ -8,12 +8,32 @@ const state = {
   currentResults: [],
   cart: [],
   savedLists: [],
+  currentSearchId: 0,
+  meliSearching: false,
   promos: {
     cuentaDni: false,
     clubDia: false,
     meliFull: true
   }
 };
+
+// Floating Toast Notification
+function showToast(message) {
+  let toast = document.getElementById('appToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'appToast';
+    toast.className = 'fixed bottom-20 left-1/2 transform -translate-x-1/2 z-50 bg-slate-900/95 border border-amber-400/40 text-amber-200 text-xs font-bold px-4 py-2 rounded-full shadow-2xl backdrop-blur-md transition duration-300 opacity-0 pointer-events-none flex items-center gap-2';
+    document.body.appendChild(toast);
+  }
+  toast.innerHTML = `<span>⚡</span><span>${message}</span>`;
+  toast.classList.remove('opacity-0', 'pointer-events-none');
+  toast.classList.add('opacity-100');
+  setTimeout(() => {
+    toast.classList.remove('opacity-100');
+    toast.classList.add('opacity-0', 'pointer-events-none');
+  }, 3500);
+}
 
 // Format currency ARS
 function formatMoney(amount) {
@@ -220,10 +240,14 @@ async function performSearch(query) {
   loadingState.classList.remove('hidden');
   statsBar.classList.add('hidden');
 
+  const searchId = ++state.currentSearchId;
+  state.meliSearching = true;
+
   try {
     const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
     const data = await res.json();
 
+    if (state.currentSearchId !== searchId) return;
     loadingState.classList.add('hidden');
 
     if (!res.ok) {
@@ -245,24 +269,26 @@ async function performSearch(query) {
     document.getElementById('countActual').textContent = data.counts?.actual || 0;
     document.getElementById('countDia').textContent = data.counts?.dia || 0;
 
-    const meliStoreInfo = data.stores?.mercadolibre;
     const countMeliEl = document.getElementById('countMeli');
     const meliNotice = document.getElementById('meliCloudNotice');
+    if (meliNotice) meliNotice.classList.add('hidden');
 
-    if (meliStoreInfo?.blockedByBot) {
-      countMeliEl.innerHTML = '<span class="text-amber-600 font-bold" title="Bloqueado por firewall en la nube">0 ⚠️</span>';
-      if (meliNotice) {
-        meliNotice.classList.remove('hidden');
-        const meliDirectLink = document.getElementById('meliDirectLink');
-        if (meliDirectLink) {
-          meliDirectLink.href = `https://listado.mercadolibre.com.ar/alimentos-bebidas/${encodeURIComponent(query)}_Envio_Full`;
-        }
-      }
+    // Show animated searching status for Mercado Libre in stats bar
+    if (data.meliPending) {
+      countMeliEl.innerHTML = `
+        <span class="inline-flex items-center justify-center gap-1 text-amber-400 font-bold animate-pulse">
+          <svg class="animate-spin h-3 w-3 inline text-amber-400" viewBox="0 0 24 24" fill="none">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+          </svg>
+          <span class="text-[10px]">Buscando...</span>
+        </span>
+      `;
+      // Trigger background fetch for Mercado Libre
+      fetchMeliBackground(query, searchId);
     } else {
+      state.meliSearching = false;
       countMeliEl.textContent = data.counts?.mercadolibre || 0;
-      if (meliNotice) {
-        meliNotice.classList.add('hidden');
-      }
     }
 
     if (state.currentResults.length === 0) {
@@ -271,10 +297,63 @@ async function performSearch(query) {
       renderCards(state.currentResults);
     }
   } catch (err) {
+    if (state.currentSearchId !== searchId) return;
     loadingState.classList.add('hidden');
     emptyState.classList.remove('hidden');
     if (heroBanner) heroBanner.classList.remove('hidden');
     alert('Fallo de conexión al consultar las tiendas.');
+  }
+}
+
+async function fetchMeliBackground(query, searchId) {
+  try {
+    const res = await fetch(`/api/search/meli?q=${encodeURIComponent(query)}`);
+    if (state.currentSearchId !== searchId) return;
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (state.currentSearchId !== searchId) return;
+
+    state.meliSearching = false;
+    const countMeliEl = document.getElementById('countMeli');
+    const meliNotice = document.getElementById('meliCloudNotice');
+
+    const meliCount = data.counts?.mercadolibre || 0;
+    const isBlocked = data.stores?.mercadolibre?.blockedByBot === true;
+
+    if (isBlocked || meliCount === 0) {
+      countMeliEl.innerHTML = '<span class="text-amber-500 font-bold" title="No disponible en la nube">0 ⚠️</span>';
+      if (meliNotice) {
+        meliNotice.classList.remove('hidden');
+        const meliDirectLink = document.getElementById('meliDirectLink');
+        if (meliDirectLink) {
+          meliDirectLink.href = `https://listado.mercadolibre.com.ar/alimentos-bebidas/${encodeURIComponent(query)}_Envio_Full`;
+        }
+      }
+      if (state.activeTab === 'search') {
+        renderCards(state.currentResults);
+      }
+    } else {
+      countMeliEl.textContent = meliCount;
+      if (meliNotice) meliNotice.classList.add('hidden');
+
+      state.currentResults = data.cards || [];
+      document.getElementById('totalCardsCount').textContent = data.totalCards;
+
+      if (state.activeTab === 'search') {
+        renderCards(state.currentResults);
+      }
+      showToast(`${meliCount} productos de Mercado Libre Full actualizados`);
+    }
+  } catch (e) {
+    if (state.currentSearchId !== searchId) return;
+    state.meliSearching = false;
+    const countMeliEl = document.getElementById('countMeli');
+    if (countMeliEl) countMeliEl.innerHTML = '<span class="text-amber-500 font-bold">0 ⚠️</span>';
+    const meliNotice = document.getElementById('meliCloudNotice');
+    if (meliNotice) meliNotice.classList.remove('hidden');
+    if (state.activeTab === 'search') {
+      renderCards(state.currentResults);
+    }
   }
 }
 
@@ -318,6 +397,18 @@ function renderCards(cards) {
     const storePillsHtml = stores.map(store => {
       const p = store.data;
       if (!p || p.price <= 0) {
+        if (store.id === 'mercadolibre' && state.meliSearching) {
+          return `
+            <div class="p-2 rounded-xl border border-dashed border-amber-400/50 bg-amber-500/5 flex flex-col justify-between text-center animate-pulse">
+              <span class="text-[10px] font-bold text-amber-500">${store.name}</span>
+              <span class="text-[11px] text-amber-500 my-1 font-semibold flex items-center justify-center gap-1">
+                <svg class="animate-spin h-3 w-3 inline text-amber-400" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                Buscando...
+              </span>
+              <span class="text-[9px] text-amber-400/70">Full ⚡</span>
+            </div>
+          `;
+        }
         return `
           <div class="p-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 flex flex-col justify-between opacity-60 text-center">
             <span class="text-[10px] font-bold text-slate-500">${store.name}</span>

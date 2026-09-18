@@ -57,7 +57,7 @@ export async function searchMercadoLibre(searchTerm) {
   if (!slug) return [];
 
   try {
-    // 1. Primary Strategy: Fast Search Crawler (Bypasses Akamai Bot Protection in ~1-1.5s)
+    // 1. Primary Strategy: Fast Search Crawler (Bypasses Akamai Bot Protection in ~1-1.5s on residential/local IP)
     try {
       const targetUrl = `https://listado.mercadolibre.com.ar/${slug}`;
       const response = await fetch(targetUrl, {
@@ -67,7 +67,7 @@ export async function searchMercadoLibre(searchTerm) {
           'Accept-Language': 'es-AR,es;q=0.9'
         },
         redirect: 'follow',
-        signal: AbortSignal.timeout(4500)
+        signal: AbortSignal.timeout(3500)
       });
 
       if (response.ok) {
@@ -82,101 +82,33 @@ export async function searchMercadoLibre(searchTerm) {
       console.warn('[Mercado Libre Crawler] Intento crawler falló o timeout:', crawlerErr.message);
     }
 
-    // 2. Secondary Strategy: ScraperAPI Proxy (if API key is present)
+    // 2. Secondary Strategy: ScraperAPI Proxy (runs with 20s timeout budget in async mode)
     if (process.env.SCRAPER_API_KEY) {
       try {
         const targetUrl = `https://listado.mercadolibre.com.ar/${slug}`;
-        const scraperUrl = `http://api.scraperapi.com?api_key=${process.env.SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&device_type=desktop`;
+        const scraperUrl = `http://api.scraperapi.com?api_key=${process.env.SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}`;
         
         const response = await fetch(scraperUrl, {
-          headers: {
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'es-AR,es;q=0.9'
-          },
-          signal: AbortSignal.timeout(4500)
+          signal: AbortSignal.timeout(20000)
         });
 
         if (response.ok) {
           const html = await response.text();
-          const prods = parseMeliHtml(html, searchTerm);
-          if (prods.length > 0) return prods;
+          if (!html.includes('account-verification') && !html.includes('px-captcha')) {
+            const prods = parseMeliHtml(html, searchTerm);
+            if (prods.length > 0) return prods;
+          }
         }
       } catch (scraperErr) {
-        console.warn('[Mercado Libre ScraperAPI] Timeout o error:', scraperErr.message);
+        console.warn('[Mercado Libre ScraperAPI] Error o timeout:', scraperErr.message);
       }
     }
 
-    // 3. Tertiary Strategy: Official authenticated API if credentials are provided
-    const token = await getMeliAccessToken();
-    if (token) {
-      try {
-        const apiUrl = `https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(searchTerm)}&category=MLA1403&limit=50`;
-        const apiRes = await fetch(apiUrl, {
-          headers: { 'Authorization': `Bearer ${token}` },
-          signal: AbortSignal.timeout(4000)
-        });
-        if (apiRes.ok) {
-          const apiData = await apiRes.json();
-          const items = apiData.results || [];
-          const apiProducts = items.map(item => {
-            const brandAttr = (item.attributes || []).find(a => a.id === 'BRAND');
-            const isFull = item.shipping?.logistic_type === 'fulfillment';
-            return {
-              id: `meli_${item.id}`,
-              store: 'Mercado Libre',
-              storeId: 'mercadolibre',
-              branch: 'Full Súper ⚡',
-              title: item.title,
-              brand: brandAttr ? brandAttr.value_name.toUpperCase() : '',
-              price: item.price,
-              originalPrice: item.original_price || null,
-              discountPercent: item.original_price && item.original_price > item.price
-                ? Math.round(((item.original_price - item.price) / item.original_price) * 100)
-                : null,
-              promotionText: isFull ? 'Envío Full ⚡' : 'Mercado Libre',
-              ean: null,
-              image: item.thumbnail ? item.thumbnail.replace('http://', 'https://') : '',
-              available: true,
-              isFull: isFull,
-              url: item.permalink
-            };
-          });
-          if (apiProducts.length > 0) return apiProducts;
-        }
-      } catch (apiErr) {
-        console.warn('[Mercado Libre API] Error al consultar API, intentando scraping:', apiErr.message);
-      }
-    }
-
-    // 4. Fallback to direct HTML Scraping (standard desktop user agent)
-    const targetUrl = `https://listado.mercadolibre.com.ar/${slug}`;
-    const response = await fetch(targetUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'Accept-Language': 'es-AR,es;q=0.9'
-      },
-      redirect: 'follow',
-      signal: AbortSignal.timeout(4000)
-    });
-
-    if (!response.ok) {
-      console.warn(`[Mercado Libre] Error HTTP ${response.status}`);
-      return [];
-    }
-
-    const finalUrl = response.url || '';
-    const html = await response.text();
-
-    // Detect Akamai bot checkpoint redirection
-    if (finalUrl.includes('account-verification') || html.includes('account-verification') || html.includes('px-captcha')) {
-      console.warn('[Mercado Libre] Solicitud redirigida a verificación de cuenta / anti-bot.');
-      const emptyBlocked = [];
-      emptyBlocked.blockedByBot = true;
-      return emptyBlocked;
-    }
-
-    return parseMeliHtml(html, searchTerm);
+    // 3. Fallback: Return empty array flagged as blocked
+    console.warn('[Mercado Libre] No se pudieron obtener resultados (bloqueo por firewall en la nube).');
+    const emptyBlocked = [];
+    emptyBlocked.blockedByBot = true;
+    return emptyBlocked;
   } catch (error) {
     console.error('[Mercado Libre] Fallo de búsqueda:', error.message);
     return [];
