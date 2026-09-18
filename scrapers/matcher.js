@@ -19,6 +19,10 @@ function cleanString(str) {
 }
 
 function isKitOrCombo(title) {
+  if (!title) return false;
+  if (title.includes('+')) return true;
+  const raw = title.toLowerCase();
+  if (/\b(?:kit|combo|set\s*x|caja\s*cerrada|bulto\s*x|promo\s*x)\b/i.test(raw)) return true;
   const str = cleanString(title);
   return str.includes('kit') || str.includes('combo') || str.includes('bombilla') || str.includes('lata yerbera') || str.includes('termo');
 }
@@ -91,7 +95,35 @@ function extractDiaperSize(str) {
   return null;
 }
 
-// Calculate similarity score between two strings (tokens overlap)
+// Baby category isolation: distinguish diapers, wipes, and combos
+function getProductType(title) {
+  const s = cleanString(title);
+  const hasDiaper = /\b(panal|panales|pants|bombachita|up and go)\b/.test(s) || extractDiaperSize(title) !== null;
+  const hasWipe = /\b(toallit|toallitas|toallita|toalla humeda|toallas humedas|wipes|toall)\b/.test(s);
+  if (hasDiaper && hasWipe) return 'combo_diaper_wipe';
+  if (hasDiaper) return 'diaper';
+  if (hasWipe) return 'wipe';
+  return null;
+}
+
+// Extract product sub-line / variant
+function extractSubLine(title) {
+  const s = cleanString(title);
+  const sublines = [
+    'triple proteccion', 'natural care', 'protect plus', 'puro y natural', 'puros y naturales',
+    'active sec', 'flexi comfort', 'primeros 100 dias', 'confort sec',
+    'comfort sec', 'premium care', 'supersec', 'super sec', 'splashers',
+    'oleo calcareo', 'oleo', 'limpieza efectiva', 'manitos y carita', 'manos y cara',
+    'limpieza diaria', 'one done', 'dermacare', 'kimbies', 'classic', 'sirenita', 'toy story',
+    'higiene y suavidad', 'sensibles', 'sensitive', 'limpieza brillante'
+  ];
+  for (const sub of sublines) {
+    if (s.includes(sub)) return sub.replace(/\s+/g, '_');
+  }
+  return null;
+}
+
+// Calculate similarity score between two strings (tokens overlap + containment for e-commerce SEO titles)
 function calculateSimilarity(str1, str2) {
   const words1 = cleanString(str1).split(' ').filter(w => w.length > 2);
   const words2 = cleanString(str2).split(' ').filter(w => w.length > 2);
@@ -99,7 +131,10 @@ function calculateSimilarity(str1, str2) {
   if (words1.length === 0 || words2.length === 0) return 0;
 
   const common = words1.filter(w => words2.includes(w));
-  return (2 * common.length) / (words1.length + words2.length);
+  const dice = (2 * common.length) / (words1.length + words2.length);
+  const minLen = Math.min(words1.length, words2.length);
+  const containment = minLen > 0 ? (common.length / minLen) : 0;
+  return Math.max(dice, containment * 0.7);
 }
 
 const STOPWORDS = new Set(['de', 'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'con', 'sin', 'en', 'para', 'por', 'del', 'al', 'y', 'o', 'que']);
@@ -114,6 +149,34 @@ function getTokens(str) {
 function matchTwoProducts(p1, p2) {
   if (isKitOrCombo(p1.title) !== isKitOrCombo(p2.title)) return false;
 
+  // Baby product type isolation: diaper vs wipe vs combo
+  const type1 = getProductType(p1.title);
+  const type2 = getProductType(p2.title);
+  if ((type1 || type2) && type1 !== type2) return false;
+
+  // Baby product sub-line matching: triple protección, natural care, etc.
+  const sub1 = extractSubLine(p1.title);
+  const sub2 = extractSubLine(p2.title);
+  if (type1 || type2) {
+    if (sub1 !== sub2) return false;
+  } else {
+    if (sub1 && sub2 && sub1 !== sub2) return false;
+  }
+
+  // Diaper size matching: do not match Talle M with Talle XG
+  if (type1 === 'diaper' || type2 === 'diaper') {
+    const size1 = extractDiaperSize(p1.title);
+    const size2 = extractDiaperSize(p2.title);
+    if (size1 && size2 && size1 !== size2) return false;
+  }
+
+  // Price sanity ratio safeguard (<= 2.2x): identical consumer goods across retail supermarkets never exceed 2.2x ratio
+  if (p1.price > 0 && p2.price > 0) {
+    const minP = Math.min(p1.price, p2.price);
+    const maxP = Math.max(p1.price, p2.price);
+    if (minP > 0 && (maxP / minP) > 2.2) return false;
+  }
+
   const q1 = extractQuantity(p1.title);
   const q2 = extractQuantity(p2.title);
   let qtyMatch = false;
@@ -124,13 +187,59 @@ function matchTwoProducts(p1, p2) {
     qtyMatch = true;
   }
 
-  // Diaper size matching: do not match Talle M with Talle XG
-  const size1 = extractDiaperSize(p1.title);
-  const size2 = extractDiaperSize(p2.title);
-  if (size1 && size2 && size1 !== size2) return false;
-
   const t1 = cleanString(p1.title);
   const t2 = cleanString(p2.title);
+
+  // Beverage container type: lata vs botella/pet
+  const isLata1 = /\b(?:lata|latas)\b/.test(t1);
+  const isLata2 = /\b(?:lata|latas)\b/.test(t2);
+  const isBotella1 = /\b(?:botella|botellas|pet|vidrio)\b/.test(t1);
+  const isBotella2 = /\b(?:botella|botellas|pet|vidrio)\b/.test(t2);
+  if (isLata1 && !isLata2 && isBotella2 && !isLata1) return false;
+  if (isBotella1 && !isBotella1 && isLata2 && !isBotella2) return false;
+
+  // Soda flavor/version: original vs zero/light
+  const isZero1 = /\b(?:zero|sin azucar|sin azucares|light|diet)\b/.test(t1);
+  const isZero2 = /\b(?:zero|sin azucar|sin azucares|light|diet)\b/.test(t2);
+  const isOriginal1 = /\b(?:original|sabor original|clasica|clasico|comun)\b/.test(t1);
+  const isOriginal2 = /\b(?:original|sabor original|clasica|clasico|comun)\b/.test(t2);
+  if (isZero1 && isOriginal2) return false;
+  if (isOriginal1 && isZero2) return false;
+
+  // Shampoo vs conditioner
+  const isShampoo1 = /\b(?:shampoo|champu)\b/.test(t1);
+  const isShampoo2 = /\b(?:shampoo|champu)\b/.test(t2);
+  const isAcond1 = /\b(?:acondicionador|enjuague)\b/.test(t1);
+  const isAcond2 = /\b(?:acondicionador|enjuague)\b/.test(t2);
+  if (isShampoo1 && !isAcond1 && isAcond2 && !isShampoo2) return false;
+  if (isAcond1 && !isShampoo1 && isShampoo2 && !isAcond2) return false;
+
+  // Soap: liquid vs bar
+  const isLiquido1 = /\b(?:liquido|liquida)\b/.test(t1);
+  const isLiquido2 = /\b(?:liquido|liquida)\b/.test(t2);
+  const isPanBarra1 = /\b(?:pan|barra|pastilla)\b/.test(t1);
+  const isPanBarra2 = /\b(?:pan|barra|pastilla)\b/.test(t2);
+  if (isLiquido1 && isPanBarra2) return false;
+  if (isPanBarra1 && isLiquido2) return false;
+
+  // Condiments: mayonnaise vs mustard vs ketchup
+  const isMayo1 = t1.includes('mayonesa');
+  const isMayo2 = t2.includes('mayonesa');
+  const isMostaza1 = t1.includes('mostaza');
+  const isMostaza2 = t2.includes('mostaza');
+  const isKetchup1 = t1.includes('ketchup');
+  const isKetchup2 = t2.includes('ketchup');
+  if (isMayo1 !== isMayo2 && (isMayo1 || isMayo2)) return false;
+  if (isMostaza1 !== isMostaza2 && (isMostaza1 || isMostaza2)) return false;
+  if (isKetchup1 !== isKetchup2 && (isKetchup1 || isKetchup2)) return false;
+
+  // Tuna: desmenuzado vs lomito/trozos/solido
+  const isDesm1 = t1.includes('desmenuzado');
+  const isDesm2 = t2.includes('desmenuzado');
+  const isLomito1 = t1.includes('lomito') || t1.includes('lomo') || t1.includes('trozos') || t1.includes('solido') || t1.includes('entero');
+  const isLomito2 = t2.includes('lomito') || t2.includes('lomo') || t2.includes('trozos') || t2.includes('solido') || t2.includes('entero');
+  if (isDesm1 && !isDesm2 && isLomito2 && !isLomito1) return false;
+  if (isLomito1 && !isLomito2 && isDesm2 && !isDesm1) return false;
 
   // Do not mix mate cocido / saquitos with loose yerba
   const isCocido1 = t1.includes('cocido') || t1.includes('saquito') || t1.includes('sobre');
@@ -230,7 +339,7 @@ export function matchProducts(golopolisProducts = [], actualProducts = [], diaPr
     if (visited.has(current.id)) continue;
     for (const group of matchedGroups) {
       if (group.products.some(p => p.storeId === current.storeId)) continue;
-      if (group.products.some(p => matchTwoProducts(current, p))) {
+      if (group.products.every(p => matchTwoProducts(current, p))) {
         group.products.push(current);
         visited.add(current.id);
         break;
@@ -252,15 +361,24 @@ export function matchProducts(golopolisProducts = [], actualProducts = [], diaPr
     };
     visited.add(current.id);
 
+    const storeBest = new Map();
     for (let j = i + 1; j < stillRemaining.length; j++) {
       const other = stillRemaining[j];
       if (visited.has(other.id)) continue;
-      if (group.products.some(p => p.storeId === other.storeId)) continue;
+      if (other.storeId === current.storeId) continue;
 
-      if (group.products.some(p => matchTwoProducts(other, p))) {
-        group.products.push(other);
-        visited.add(other.id);
+      if (matchTwoProducts(current, other)) {
+        const existing = storeBest.get(other.storeId);
+        // If multiple candidates match from this store, choose the lowest price (best deal for the user)
+        if (!existing || other.price < existing.price) {
+          storeBest.set(other.storeId, other);
+        }
       }
+    }
+
+    for (const prod of storeBest.values()) {
+      group.products.push(prod);
+      visited.add(prod.id);
     }
 
     matchedGroups.push(group);
@@ -309,9 +427,20 @@ export function matchProducts(golopolisProducts = [], actualProducts = [], diaPr
       }
     });
 
-    // Determine cheapest store among available prices
-    const validEntries = Object.entries(prices).filter(([_, info]) => info && info.price > 0 && info.available !== false);
+    // Guardrail: Remove any outlier store price that exceeds 2.2x the lowest price
+    let validEntries = Object.entries(prices).filter(([_, info]) => info && info.price > 0 && info.available !== false);
     validEntries.sort((a, b) => a[1].price - b[1].price);
+
+    if (validEntries.length > 1) {
+      const minBase = validEntries[0][1].price;
+      for (const [storeId, info] of Object.entries(prices)) {
+        if (info && info.price > minBase * 2.2) {
+          prices[storeId] = null;
+        }
+      }
+      validEntries = Object.entries(prices).filter(([_, info]) => info && info.price > 0 && info.available !== false);
+      validEntries.sort((a, b) => a[1].price - b[1].price);
+    }
 
     const minPrice = validEntries.length > 0 ? validEntries[0][1].price : 0;
     const maxPrice = validEntries.length > 0 ? validEntries[validEntries.length - 1][1].price : 0;
