@@ -15,6 +15,11 @@
   <link rel="icon" type="image/png" href="/logo.png">
   <link rel="apple-touch-icon" href="/logo.png">
 
+  <!-- Google Fonts: Great Vibes & Dancing Script for signature -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Great+Vibes&display=swap" rel="stylesheet">
+
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -66,6 +71,9 @@
     }
     .animate-pulse-slow {
       animation: pulse-slow 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    .font-signature {
+      font-family: 'Great Vibes', 'Dancing Script', cursive;
     }
   </style>
 </head>
@@ -194,6 +202,14 @@
           loading="eager"
         />
         <div class="absolute inset-0 bg-gradient-to-t from-[#071924] via-transparent to-transparent opacity-80 pointer-events-none"></div>
+
+        <!-- Firma Personal Elegante -->
+        <div class="absolute top-2 right-3 sm:top-2.5 sm:right-4 pointer-events-none select-none z-10">
+          <span class="font-signature text-xl sm:text-2xl md:text-3xl text-cyan-100 drop-shadow-[0_2px_10px_rgba(0,0,0,0.95)] tracking-wide font-normal">
+            by Gonza Petreigne
+          </span>
+        </div>
+
         <div class="absolute bottom-2.5 left-3 right-3 flex items-center justify-between pointer-events-none">
           <div class="flex items-center gap-2">
             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-cyan-500/30 text-cyan-200 border border-cyan-400/40 backdrop-blur-md">
