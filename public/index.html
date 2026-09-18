@@ -147,6 +147,16 @@
         <button class="quick-chip bg-slate-800/80 hover:bg-cyan-900/50 border border-cyan-500/25 active:scale-95 px-2.5 py-1 rounded-lg text-cyan-100 shrink-0 font-medium transition" data-term="coca cola">Coca Cola</button>
         <button class="quick-chip bg-slate-800/80 hover:bg-cyan-900/50 border border-cyan-500/25 active:scale-95 px-2.5 py-1 rounded-lg text-cyan-100 shrink-0 font-medium transition" data-term="lavandina">Lavandina</button>
       </div>
+
+      <!-- Detalle Superior: Fecha de última actualización de precios -->
+      <div class="flex items-center justify-between text-[11px] text-cyan-200/90 pt-1.5 pb-0.5 px-0.5 border-t border-cyan-500/15 mt-1.5">
+        <div class="flex items-center gap-1.5 font-medium">
+          <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+          <span>Última actualización de precios:</span>
+          <strong id="headerLastUpdateDate" class="text-white font-black tracking-wide">18 de septiembre de 2026</strong>
+        </div>
+        <span class="text-[10px] text-cyan-300/70 font-semibold hidden sm:inline">Precios verificados en sucursal</span>
+      </div>
     </div>
   </header>
 
@@ -270,6 +280,16 @@
             <div class="text-[10px] text-amber-300/80 font-medium">Full ⚡</div>
             <div id="countMeli" class="text-xs font-black text-white mt-0.5">0</div>
           </div>
+        </div>
+
+        <!-- Detalle de última actualización en la barra de búsqueda -->
+        <div class="flex items-center justify-between text-[11px] text-cyan-200/90 pt-2 border-t border-cyan-500/20 mt-2.5">
+          <div class="flex items-center gap-1.5 font-medium">
+            <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+            <span>Última actualización de precios:</span>
+            <strong id="searchLastUpdateDate" class="text-white font-black tracking-wide">18 de septiembre de 2026</strong>
+          </div>
+          <span class="text-[10px] text-cyan-300/80 bg-cyan-950/60 px-2 py-0.5 rounded-md border border-cyan-500/30 font-semibold">Semanal</span>
         </div>
 
         <!-- Aviso inteligente cuando Mercado Libre está bloqueado por firewall en nube -->

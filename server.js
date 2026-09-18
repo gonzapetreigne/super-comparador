@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import os from 'os';
 import dotenv from 'dotenv';
@@ -23,6 +24,29 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Helper to read catalog metadata and last update date
+function getCatalogInfo() {
+  try {
+    const infoPath = path.join(__dirname, 'data', 'catalog-info.json');
+    if (fs.existsSync(infoPath)) {
+      return JSON.parse(fs.readFileSync(infoPath, 'utf8'));
+    }
+  } catch (e) {
+    // fallback
+  }
+  return {
+    lastUpdated: '2026-09-18T09:00:00.000Z',
+    formattedDate: '18 de septiembre de 2026',
+    displayDate: '18/09/2026'
+  };
+}
+
+// Metadata endpoint
+app.get('/api/info', (req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=300');
+  res.json(getCatalogInfo());
+});
 
 // In-memory cache for fast repeated searches (TTL: 5 minutes)
 const searchCache = new Map();
@@ -69,6 +93,8 @@ app.get('/api/search', async (req, res) => {
       elapsedMs: elapsedMs,
       cards: matchedResult.cards,
       totalCards: matchedResult.totalCards,
+      lastPriceUpdate: getCatalogInfo(),
+      lastUpdatedDate: getCatalogInfo().formattedDate,
       counts: {
         golopolis: golopolisProds.length,
         actual: actualProds.length,
@@ -149,6 +175,8 @@ app.get('/api/search/meli', async (req, res) => {
       elapsedMs: elapsedMs,
       cards: matchedResult.cards,
       totalCards: matchedResult.totalCards,
+      lastPriceUpdate: getCatalogInfo(),
+      lastUpdatedDate: getCatalogInfo().formattedDate,
       counts: {
         golopolis: golo.length,
         actual: actual.length,

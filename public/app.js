@@ -61,7 +61,30 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSavedData();
   setupEventListeners();
   updateCartBadge();
+  fetchCatalogInfo();
 });
+
+async function fetchCatalogInfo() {
+  try {
+    const res = await fetch('/api/info');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.formattedDate) {
+        updatePriceDates(data.formattedDate);
+      }
+    }
+  } catch (e) {
+    // Keep fallback
+  }
+}
+
+function updatePriceDates(dateStr) {
+  if (!dateStr) return;
+  const headerEl = document.getElementById('headerLastUpdateDate');
+  if (headerEl) headerEl.textContent = dateStr;
+  const searchEl = document.getElementById('searchLastUpdateDate');
+  if (searchEl) searchEl.textContent = dateStr;
+}
 
 // Load cart and saved lists from localStorage
 function loadSavedData() {
@@ -264,6 +287,9 @@ async function performSearch(query) {
     document.getElementById('totalCardsCount').textContent = data.totalCards;
     document.getElementById('queryLabel').textContent = query;
     document.getElementById('elapsedTimeBadge').textContent = `${(data.elapsedMs / 1000).toFixed(1)}s`;
+    if (data.lastUpdatedDate) {
+      updatePriceDates(data.lastUpdatedDate);
+    }
 
     document.getElementById('countGolo').textContent = data.counts?.golopolis || 0;
     document.getElementById('countActual').textContent = data.counts?.actual || 0;
@@ -338,6 +364,9 @@ async function fetchMeliBackground(query, searchId) {
 
       state.currentResults = data.cards || [];
       document.getElementById('totalCardsCount').textContent = data.totalCards;
+      if (data.lastUpdatedDate) {
+        updatePriceDates(data.lastUpdatedDate);
+      }
 
       if (state.activeTab === 'search') {
         renderCards(state.currentResults);
