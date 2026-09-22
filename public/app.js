@@ -7,6 +7,7 @@ const state = {
   activeTab: 'search',
   currentResults: [],
   cart: [],
+  cartStoreFilter: 'all',
   savedLists: [],
   currentSearchId: 0,
   meliSearching: false,
@@ -14,6 +15,74 @@ const state = {
     cuentaDni: false,
     clubDia: false,
     meliFull: true
+  }
+};
+
+// Store Configuration & Visual Metas
+const STORE_CONFIG = {
+  dia: {
+    id: 'dia',
+    name: 'Día%',
+    shortName: 'Día%',
+    fullName: 'Super Día%',
+    emoji: '🔴',
+    logo: '/logos/dia.svg',
+    logoClass: 'h-4 object-contain rounded shadow-xs',
+    headerBg: 'bg-gradient-to-r from-red-600 to-rose-700 text-white',
+    badgeColor: 'bg-red-600 text-white',
+    borderClass: 'border-red-200',
+    lightBg: 'bg-red-50/60',
+    btnBg: 'bg-red-600 hover:bg-red-700 text-white',
+    branchInfo: 'Online / Sucursal Las Flores',
+    address: 'Av. San Martín y Belgrano'
+  },
+  actual: {
+    id: 'actual',
+    name: 'Actual',
+    shortName: 'Actual',
+    fullName: 'Supermercado Actual',
+    emoji: '🟠',
+    logo: '/logos/actual.svg',
+    logoClass: 'h-4 object-contain drop-shadow-xs',
+    headerBg: 'bg-gradient-to-r from-orange-600 to-amber-600 text-white',
+    badgeColor: 'bg-orange-500 text-white',
+    borderClass: 'border-orange-200',
+    lightBg: 'bg-orange-50/60',
+    btnBg: 'bg-orange-600 hover:bg-orange-700 text-white',
+    branchInfo: 'Sucursal Las Flores',
+    address: 'Av. San Martín / Rivadavia'
+  },
+  golopolis: {
+    id: 'golopolis',
+    name: 'Golópolis',
+    shortName: 'Golópolis',
+    fullName: 'Supermercado Golópolis',
+    emoji: '🟢',
+    logo: '/logos/golopolis.svg',
+    logoClass: 'h-4 object-contain drop-shadow-xs',
+    headerBg: 'bg-gradient-to-r from-lime-700 to-emerald-700 text-white',
+    badgeColor: 'bg-lime-600 text-white',
+    borderClass: 'border-lime-300',
+    lightBg: 'bg-lime-50/60',
+    btnBg: 'bg-lime-600 hover:bg-lime-700 text-white',
+    branchInfo: 'Sucursal Las Flores',
+    address: 'Sucursal Las Flores'
+  },
+  mercadolibre: {
+    id: 'mercadolibre',
+    name: 'Mercado Libre',
+    shortName: 'MELI Full',
+    fullName: 'Mercado Libre (Full ⚡)',
+    emoji: '🟡',
+    logo: '/logos/mercadolibre.svg',
+    logoClass: 'h-4 w-4 object-contain',
+    headerBg: 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950',
+    badgeColor: 'bg-amber-400 text-slate-950',
+    borderClass: 'border-amber-300',
+    lightBg: 'bg-amber-50/60',
+    btnBg: 'bg-amber-400 hover:bg-amber-500 text-slate-950',
+    branchInfo: 'Envíos a Las Flores',
+    address: 'Compra online / Envío a domicilio'
   }
 };
 
@@ -102,12 +171,35 @@ function updatePriceDates(dateStr) {
   if (searchEl) searchEl.textContent = dateStr;
 }
 
+// Get cheapest / best available store for a card or cart item
+function getBestStoreForCard(itemOrCard) {
+  if (!itemOrCard || !itemOrCard.prices) return 'dia';
+  const options = [
+    { id: 'dia', price: itemOrCard.prices.dia?.price ? getEffectivePrice('dia', itemOrCard.prices.dia.price) : null },
+    { id: 'actual', price: itemOrCard.prices.actual?.price ? getEffectivePrice('actual', itemOrCard.prices.actual.price) : null },
+    { id: 'golopolis', price: itemOrCard.prices.golopolis?.price ? getEffectivePrice('golopolis', itemOrCard.prices.golopolis.price) : null },
+    { id: 'mercadolibre', price: itemOrCard.prices.mercadolibre?.price ? getEffectivePrice('mercadolibre', itemOrCard.prices.mercadolibre.price) : null }
+  ].filter(o => o.price !== null && o.price > 0);
+
+  if (options.length === 0) return 'dia';
+  options.sort((a, b) => a.price - b.price);
+  return options[0].id;
+}
+
 // Load cart and saved lists from localStorage
 function loadSavedData() {
   try {
     const storedCart = localStorage.getItem('super_cart_v1');
     if (storedCart) {
       state.cart = JSON.parse(storedCart);
+      state.cart.forEach(item => {
+        if (!item.selectedStore) {
+          item.selectedStore = getBestStoreForCard(item);
+        }
+        if (typeof item.checked !== 'boolean') {
+          item.checked = false;
+        }
+      });
     }
     const storedLists = localStorage.getItem('super_lists_v1');
     if (storedLists) {
@@ -586,22 +678,36 @@ function renderCards(cards) {
       if (store.id === 'mercadolibre') {
         const meliUrl = p.url || getMeliSearchUrl(card.title, card.brand);
         actionBtnHtml = `
-          <a href="${meliUrl}" target="_blank" rel="noopener noreferrer" class="mt-2 w-full py-1.5 px-1.5 bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-950 font-black text-[10px] rounded-lg shadow-2xs transition flex items-center justify-center gap-1 text-center" title="Abrir en la App de Mercado Libre para comprar o ver otros vendedores">
-            <span>Abrir en MELI</span>
-            <svg class="w-3 h-3 text-slate-950 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-          </a>
+          <div class="mt-2 space-y-1">
+            <button onclick="addToCart('${card.id}', 'mercadolibre')" class="w-full py-1 px-1 rounded-lg text-[10px] font-black transition active:scale-95 flex items-center justify-center gap-1 ${isWinner ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs' : 'bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300'}">
+              <span>+</span><span>MELI</span>
+            </button>
+            <a href="${meliUrl}" target="_blank" rel="noopener noreferrer" class="w-full py-0.5 px-1 bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-950 font-bold text-[9px] rounded shadow-2xs transition flex items-center justify-center gap-1 text-center" title="Abrir en Mercado Libre">
+              <span>Ver en App</span>
+              <svg class="w-2.5 h-2.5 text-slate-950 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            </a>
+          </div>
         `;
-      } else if (store.id === 'dia' && p.url) {
+      } else if (store.id === 'dia') {
         actionBtnHtml = `
-          <a href="${p.url}" target="_blank" rel="noopener noreferrer" class="mt-2 w-full py-1.5 px-1.5 bg-red-100/90 hover:bg-red-200 active:scale-95 text-red-900 font-bold text-[10px] rounded-lg transition flex items-center justify-center gap-1 text-center" title="Ver en Día Online">
-            <span>Día Online</span>
-            <svg class="w-2.5 h-2.5 text-red-800 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-          </a>
+          <div class="mt-2 space-y-1">
+            <button onclick="addToCart('${card.id}', 'dia')" class="w-full py-1 px-1 rounded-lg text-[10px] font-black transition active:scale-95 flex items-center justify-center gap-1 ${isWinner ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs' : 'bg-red-50 hover:bg-red-100 text-red-900 border border-red-200'}">
+              <span>+</span><span>Día%</span>
+            </button>
+            ${p.url ? `
+              <a href="${p.url}" target="_blank" rel="noopener noreferrer" class="w-full py-0.5 px-1 text-red-700 hover:underline font-bold text-[9px] transition flex items-center justify-center gap-0.5 text-center">
+                <span>Día Online</span>
+                <svg class="w-2 h-2 text-red-700 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline></svg>
+              </a>
+            ` : ''}
+          </div>
         `;
       } else {
         actionBtnHtml = `
-          <div class="mt-2 w-full py-1 text-slate-400 font-medium text-[10px] flex items-center justify-center text-center">
-            ${store.branch}
+          <div class="mt-2">
+            <button onclick="addToCart('${card.id}', '${store.id}')" class="w-full py-1 px-1 rounded-lg text-[10px] font-black transition active:scale-95 flex items-center justify-center gap-1 ${isWinner ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs' : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200'}">
+              <span>+</span><span>${store.name}</span>
+            </button>
           </div>
         `;
       }
@@ -710,15 +816,21 @@ function renderCards(cards) {
           </a>
 
           ${cartQty > 0 ? `
-            <div class="flex items-center gap-2 bg-brand-50 border border-brand-200 rounded-xl px-2 py-1">
-              <button onclick="changeCartItemQty('${card.id}', -1)" class="w-6 h-6 rounded-lg bg-white border border-brand-300 text-brand-700 font-black text-xs hover:bg-brand-100 transition active:scale-95">-</button>
-              <span class="text-xs font-black text-brand-900 px-1">${cartQty}</span>
-              <button onclick="changeCartItemQty('${card.id}', 1)" class="w-6 h-6 rounded-lg bg-white border border-brand-300 text-brand-700 font-black text-xs hover:bg-brand-100 transition active:scale-95">+</button>
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="text-[10px] font-bold text-slate-700 bg-slate-100 border border-slate-200 px-2 py-1 rounded-lg flex items-center gap-1">
+                <span>${inCartItem?.selectedStore && STORE_CONFIG[inCartItem.selectedStore] ? STORE_CONFIG[inCartItem.selectedStore].emoji : '🛒'}</span>
+                <span>${inCartItem?.selectedStore && STORE_CONFIG[inCartItem.selectedStore] ? STORE_CONFIG[inCartItem.selectedStore].name : 'Canasta'}</span>
+              </span>
+              <div class="flex items-center gap-1 bg-brand-50 border border-brand-200 rounded-xl px-2 py-1">
+                <button onclick="changeCartItemQty('${card.id}', -1)" class="w-6 h-6 rounded-lg bg-white border border-brand-300 text-brand-700 font-black text-xs hover:bg-brand-100 transition active:scale-95">-</button>
+                <span class="text-xs font-black text-brand-900 px-1.5">${cartQty}</span>
+                <button onclick="changeCartItemQty('${card.id}', 1)" class="w-6 h-6 rounded-lg bg-white border border-brand-300 text-brand-700 font-black text-xs hover:bg-brand-100 transition active:scale-95">+</button>
+              </div>
             </div>
           ` : `
             <button onclick="addToCart('${card.id}')" class="bg-slate-900 hover:bg-brand-600 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-sm transition active:scale-95 flex items-center gap-1.5">
               <span>+</span>
-              <span>Agregar a canasta</span>
+              <span>Agregar a canasta (${cheapest ? cheapest.name : 'Mejor súper'})</span>
             </button>
           `}
         </div>
@@ -739,14 +851,19 @@ function renderCards(cards) {
   }
 }
 
-// Add Item to Cart
-function addToCart(cardId) {
+// Add Item to Cart (optionally specifying target store)
+function addToCart(cardId, preferredStore = null) {
   const card = state.currentResults.find(c => c.id === cardId);
   if (!card) return;
 
+  const targetStore = preferredStore || getBestStoreForCard(card);
   const existing = state.cart.find(c => c.id === cardId);
+
   if (existing) {
     existing.quantity += 1;
+    if (preferredStore) {
+      existing.selectedStore = preferredStore;
+    }
   } else {
     state.cart.push({
       id: card.id,
@@ -754,12 +871,16 @@ function addToCart(cardId) {
       brand: card.brand,
       image: card.image,
       quantity: 1,
-      prices: card.prices
+      prices: card.prices,
+      selectedStore: targetStore,
+      checked: false
     });
   }
 
   saveCart();
   renderCards(state.currentResults);
+  const storeMeta = STORE_CONFIG[targetStore];
+  showToast(`Agregado a la lista de ${storeMeta ? storeMeta.name : 'la canasta'}`);
 }
 
 // Change Quantity in Cart
@@ -776,6 +897,77 @@ function changeCartItemQty(cardId, delta) {
   if (state.currentResults.length > 0) {
     renderCards(state.currentResults);
   }
+  if (state.activeTab === 'cart') {
+    renderCart();
+  }
+}
+
+// Change Assigned Store for a Cart Item
+function changeCartItemStore(cardId, newStore) {
+  const item = state.cart.find(c => c.id === cardId);
+  if (!item) return;
+
+  item.selectedStore = newStore;
+  saveCart();
+  renderCart();
+  const storeMeta = STORE_CONFIG[newStore];
+  showToast(`Movido a lista de ${storeMeta ? storeMeta.name : newStore}`);
+}
+
+// Toggle Checked State (for in-store shopping checklist)
+function toggleCartItemCheck(cardId) {
+  const item = state.cart.find(c => c.id === cardId);
+  if (!item) return;
+
+  item.checked = !item.checked;
+  saveCart();
+  renderCart();
+}
+
+// Toggle All Items for a Specific Store
+function toggleStoreItemsCheck(storeId) {
+  const storeItems = state.cart.filter(i => (i.selectedStore || getBestStoreForCard(i)) === storeId);
+  if (storeItems.length === 0) return;
+
+  const allChecked = storeItems.every(i => i.checked);
+  storeItems.forEach(i => i.checked = !allChecked);
+  saveCart();
+  renderCart();
+}
+
+// Copy a Supermarket Checklist to Clipboard
+function copyStoreList(storeId) {
+  const storeMeta = STORE_CONFIG[storeId] || { name: storeId };
+  const storeItems = state.cart.filter(i => (i.selectedStore || getBestStoreForCard(i)) === storeId);
+  if (storeItems.length === 0) return;
+
+  let text = `🛒 *LISTA ${storeMeta.fullName ? storeMeta.fullName.toUpperCase() : storeMeta.name.toUpperCase()}*\n`;
+  text += `📅 ${new Date().toLocaleDateString('es-AR')}\n\n`;
+
+  let subtotal = 0;
+  storeItems.forEach(item => {
+    const p = item.prices[storeId]?.price ? getEffectivePrice(storeId, item.prices[storeId].price) : null;
+    const priceText = p ? ` - ${formatMoney(p * item.quantity)} (${formatMoney(p)} c/u)` : '';
+    if (p) subtotal += p * item.quantity;
+    text += `${item.checked ? '✅' : '▫️'} ${item.quantity}x ${item.title}${priceText}\n`;
+  });
+  text += `\nTotal: ${formatMoney(subtotal)}`;
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast(`¡Lista de ${storeMeta.name} copiada al portapapeles!`);
+    }).catch(() => {
+      prompt('Copia tu lista:', text);
+    });
+  } else {
+    prompt('Copia tu lista:', text);
+  }
+}
+
+// Filter Active Supermarket in Cart
+function setCartStoreFilter(storeId) {
+  state.cartStoreFilter = storeId;
+  renderCart();
 }
 
 // Update Cart Badge in Navigation
@@ -790,11 +982,13 @@ function updateCartBadge() {
   }
 }
 
-// Render Cart View
+// Render Cart View (Organized into Supermarket Lists)
 function renderCart() {
   const emptyState = document.getElementById('cartEmptyState');
   const filledContent = document.getElementById('cartFilledContent');
-  const itemsList = document.getElementById('cartItemsList');
+  const groupsContainer = document.getElementById('cartStoreGroupsContainer');
+  const filterContainer = document.getElementById('cartStoreFilterContainer');
+  const badge = document.getElementById('cartItemsBadge');
 
   if (state.cart.length === 0) {
     emptyState.classList.remove('hidden');
@@ -804,30 +998,31 @@ function renderCart() {
 
   emptyState.classList.add('hidden');
   filledContent.classList.remove('hidden');
-  itemsList.innerHTML = '';
 
   const totalItemCount = state.cart.reduce((sum, i) => sum + i.quantity, 0);
-  document.getElementById('cartItemsBadge').textContent = `${totalItemCount} ${totalItemCount === 1 ? 'producto' : 'productos'}`;
+  if (badge) {
+    badge.textContent = `${totalItemCount} ${totalItemCount === 1 ? 'producto' : 'productos'}`;
+  }
 
-  // Store Totals Variables
+  // Store lists calculation
+  const storeKeys = ['dia', 'actual', 'golopolis', 'mercadolibre'];
+  const storeGroups = {
+    dia: { items: [], total: 0, count: 0 },
+    actual: { items: [], total: 0, count: 0 },
+    golopolis: { items: [], total: 0, count: 0 },
+    mercadolibre: { items: [], total: 0, count: 0 }
+  };
+
+  // Whole single store calculations (if buying 100% of items at that store)
   let totalGolo = 0, goloCount = 0;
   let totalActual = 0, actualCount = 0;
   let totalDia = 0, diaCount = 0;
   let totalMeli = 0, meliCount = 0;
 
-  // Split Optimal Totals
-  let optimalTotal = 0;
-  const splitItems = {
-    golopolis: { name: 'Golópolis', count: 0, total: 0, items: [] },
-    actual: { name: 'Actual', count: 0, total: 0, items: [] },
-    dia: { name: 'Día%', count: 0, total: 0, items: [] },
-    mercadolibre: { name: 'Mercado Libre', count: 0, total: 0, items: [] }
-  };
+  let grandTotal = 0;
 
   state.cart.forEach(item => {
     const qty = item.quantity;
-
-    // Prices
     const pGolo = item.prices.golopolis?.price ? getEffectivePrice('golopolis', item.prices.golopolis.price) : null;
     const pAct = item.prices.actual?.price ? getEffectivePrice('actual', item.prices.actual.price) : null;
     const pDia = item.prices.dia?.price ? getEffectivePrice('dia', item.prices.dia.price) : null;
@@ -838,149 +1033,305 @@ function renderCart() {
     if (pDia) { totalDia += pDia * qty; diaCount++; }
     if (pMeli) { totalMeli += pMeli * qty; meliCount++; }
 
-    // Find best price for this item
-    const options = [
-      { id: 'golopolis', price: pGolo },
-      { id: 'actual', price: pAct },
-      { id: 'dia', price: pDia },
-      { id: 'mercadolibre', price: pMeli }
-    ].filter(o => o.price !== null && o.price > 0);
+    // Assign to selected store or best store
+    const assignedStore = (item.selectedStore && storeGroups[item.selectedStore]) 
+      ? item.selectedStore 
+      : getBestStoreForCard(item);
 
-    options.sort((a, b) => a.price - b.price);
-
-    const best = options.length > 0 ? options[0] : null;
-    if (best) {
-      optimalTotal += best.price * qty;
-      splitItems[best.id].count += qty;
-      splitItems[best.id].total += best.price * qty;
-      splitItems[best.id].items.push({ title: item.title, qty, unitPrice: best.price, subtotal: best.price * qty });
+    // Calculate effective price for assigned store (or fallback to best available)
+    let unitPrice = item.prices[assignedStore]?.price ? getEffectivePrice(assignedStore, item.prices[assignedStore].price) : null;
+    if (!unitPrice || unitPrice <= 0) {
+      const bestFallback = getBestStoreForCard(item);
+      unitPrice = item.prices[bestFallback]?.price ? getEffectivePrice(bestFallback, item.prices[bestFallback].price) : 0;
     }
 
-    // Render row in item list
-    const row = document.createElement('div');
-    row.className = 'p-3 flex items-center justify-between gap-3';
-    row.innerHTML = `
-      <div class="flex items-center gap-2.5 min-w-0 flex-1">
-        <div class="w-11 h-11 bg-slate-50 border border-slate-200 rounded-lg overflow-hidden shrink-0 flex items-center justify-center">
-          ${item.image ? `<img src="${item.image}" alt="" class="w-full h-full object-contain p-0.5" onerror="this.src='/icon.svg'"/>` : '📦'}
-        </div>
-        <div class="min-w-0 flex-1">
-          <h4 class="text-xs font-bold text-slate-900 truncate">${item.title}</h4>
-          <div class="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5">
-            ${best ? `<span class="text-emerald-700 font-extrabold">${formatMoney(best.price)}</span> c/u en ${splitItems[best.id].name}` : ''}
-          </div>
-        </div>
-      </div>
+    const subtotal = (unitPrice || 0) * qty;
+    grandTotal += subtotal;
 
-      <!-- Quantity controls -->
-      <div class="flex items-center gap-1.5 shrink-0">
-        <div class="flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200">
-          <button onclick="changeCartItemQty('${item.id}', -1)" class="w-6 h-6 rounded bg-white text-slate-700 font-black text-xs hover:bg-slate-200 transition">-</button>
-          <span class="w-7 text-center text-xs font-black text-slate-800">${qty}</span>
-          <button onclick="changeCartItemQty('${item.id}', 1)" class="w-6 h-6 rounded bg-white text-slate-700 font-black text-xs hover:bg-slate-200 transition">+</button>
-        </div>
-        <button onclick="changeCartItemQty('${item.id}', -${qty})" class="text-slate-400 hover:text-red-600 p-1">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-          </svg>
-        </button>
-      </div>
-    `;
-    itemsList.appendChild(row);
+    if (storeGroups[assignedStore]) {
+      storeGroups[assignedStore].items.push({
+        ...item,
+        assignedStore,
+        effectiveUnitPrice: unitPrice,
+        subtotal
+      });
+      storeGroups[assignedStore].count += qty;
+      storeGroups[assignedStore].total += subtotal;
+    }
   });
 
-  // Render Single Store Comparison Totals
+  // Single Store Comparisons
   const totalCartUniqueItems = state.cart.length;
-  document.getElementById('totalGoloWhole').textContent = goloCount > 0 ? formatMoney(totalGolo) : 'N/D';
-  document.getElementById('coverageGolo').textContent = `${goloCount}/${totalCartUniqueItems} items`;
+  const setStoreTotalText = (id, price, count) => {
+    const elPrice = document.getElementById(`total${id}Whole`);
+    const elCov = document.getElementById(`coverage${id}`);
+    if (elPrice) elPrice.textContent = count > 0 ? formatMoney(price) : 'N/D';
+    if (elCov) elCov.textContent = `${count}/${totalCartUniqueItems} items`;
+  };
 
-  document.getElementById('totalActualWhole').textContent = actualCount > 0 ? formatMoney(totalActual) : 'N/D';
-  document.getElementById('coverageActual').textContent = `${actualCount}/${totalCartUniqueItems} items`;
+  setStoreTotalText('Golo', totalGolo, goloCount);
+  setStoreTotalText('Actual', totalActual, actualCount);
+  setStoreTotalText('Dia', totalDia, diaCount);
+  setStoreTotalText('Meli', totalMeli, meliCount);
 
-  document.getElementById('totalDiaWhole').textContent = diaCount > 0 ? formatMoney(totalDia) : 'N/D';
-  document.getElementById('coverageDia').textContent = `${diaCount}/${totalCartUniqueItems} items`;
+  // Split Optimal Hero card
+  const optimalTotalEl = document.getElementById('splitOptimalTotal');
+  if (optimalTotalEl) optimalTotalEl.textContent = formatMoney(grandTotal);
 
-  document.getElementById('totalMeliWhole').textContent = meliCount > 0 ? formatMoney(totalMeli) : 'N/D';
-  document.getElementById('coverageMeli').textContent = `${meliCount}/${totalCartUniqueItems} items`;
-
-  // Render Smart Split Card
-  document.getElementById('splitOptimalTotal').textContent = formatMoney(optimalTotal);
-
-  // Compare optimal against the best single store
   const singleTotals = [
-    { id: 'golo', total: totalGolo, count: goloCount },
-    { id: 'actual', total: totalActual, count: actualCount },
-    { id: 'dia', total: totalDia, count: diaCount },
-    { id: 'meli', total: totalMeli, count: meliCount }
-  ].filter(t => t.count === totalCartUniqueItems); // only stores that have 100% of items
+    { total: totalGolo, count: goloCount },
+    { total: totalActual, count: actualCount },
+    { total: totalDia, count: diaCount },
+    { total: totalMeli, count: meliCount }
+  ].filter(t => t.count === totalCartUniqueItems);
 
   let maxSingle = 0;
   if (singleTotals.length > 0) {
     singleTotals.sort((a, b) => a.total - b.total);
     maxSingle = singleTotals[0].total;
   } else {
-    // Fallback if no single store has 100% of items
     const availableSums = [totalGolo, totalActual, totalDia, totalMeli].filter(s => s > 0);
-    maxSingle = availableSums.length > 0 ? Math.max(...availableSums) : optimalTotal;
+    maxSingle = availableSums.length > 0 ? Math.max(...availableSums) : grandTotal;
+  }
+  const savings = Math.max(0, maxSingle - grandTotal);
+  const savingsEl = document.getElementById('splitSavingsTotal');
+  if (savingsEl) savingsEl.textContent = formatMoney(savings);
+
+  // Summaries
+  const goloSumEl = document.getElementById('splitGoloSummary');
+  if (goloSumEl) goloSumEl.textContent = `${storeGroups.golopolis.count} items (${formatMoney(storeGroups.golopolis.total)})`;
+  const actSumEl = document.getElementById('splitActualSummary');
+  if (actSumEl) actSumEl.textContent = `${storeGroups.actual.count} items (${formatMoney(storeGroups.actual.total)})`;
+  const diaSumEl = document.getElementById('splitDiaSummary');
+  if (diaSumEl) diaSumEl.textContent = `${storeGroups.dia.count} items (${formatMoney(storeGroups.dia.total)})`;
+  const meliSumEl = document.getElementById('splitMeliSummary');
+  if (meliSumEl) meliSumEl.textContent = `${storeGroups.mercadolibre.count} items (${formatMoney(storeGroups.mercadolibre.total)})`;
+
+  // Render Filter Buttons (Todos, Día, Actual, Golópolis, MELI)
+  if (filterContainer) {
+    filterContainer.innerHTML = '';
+
+    const filterOptions = [
+      { id: 'all', label: `Todos (${totalItemCount})` },
+      ...storeKeys
+        .filter(key => storeGroups[key].items.length > 0)
+        .map(key => ({
+          id: key,
+          label: `${STORE_CONFIG[key].emoji} ${STORE_CONFIG[key].shortName} (${storeGroups[key].count})`
+        }))
+    ];
+
+    // If active filter has 0 items, reset to all
+    if (state.cartStoreFilter !== 'all' && (!storeGroups[state.cartStoreFilter] || storeGroups[state.cartStoreFilter].items.length === 0)) {
+      state.cartStoreFilter = 'all';
+    }
+
+    filterOptions.forEach(opt => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      const isActive = state.cartStoreFilter === opt.id;
+      btn.className = `px-3 py-1.5 rounded-xl text-xs font-bold transition active:scale-95 whitespace-nowrap shrink-0 ${
+        isActive 
+          ? 'bg-slate-900 text-white shadow-sm ring-2 ring-slate-800' 
+          : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+      }`;
+      btn.textContent = opt.label;
+      btn.onclick = () => setCartStoreFilter(opt.id);
+      filterContainer.appendChild(btn);
+    });
   }
 
-  const savings = Math.max(0, maxSingle - optimalTotal);
-  document.getElementById('splitSavingsTotal').textContent = formatMoney(savings);
+  // Render Supermarket Group Cards
+  if (groupsContainer) {
+    groupsContainer.innerHTML = '';
 
-  // Split details breakdown
-  document.getElementById('splitGoloSummary').textContent = `${splitItems.golopolis.count} items (${formatMoney(splitItems.golopolis.total)})`;
-  document.getElementById('splitActualSummary').textContent = `${splitItems.actual.count} items (${formatMoney(splitItems.actual.total)})`;
-  document.getElementById('splitDiaSummary').textContent = `${splitItems.dia.count} items (${formatMoney(splitItems.dia.total)})`;
-  document.getElementById('splitMeliSummary').textContent = `${splitItems.mercadolibre.count} items (${formatMoney(splitItems.mercadolibre.total)})`;
+    const storesToRender = storeKeys.filter(key => {
+      if (storeGroups[key].items.length === 0) return false;
+      if (state.cartStoreFilter !== 'all' && state.cartStoreFilter !== key) return false;
+      return true;
+    });
+
+    if (storesToRender.length === 0) {
+      groupsContainer.innerHTML = `
+        <div class="bg-white rounded-2xl p-6 text-center border border-slate-200">
+          <p class="text-sm font-bold text-slate-600">No hay productos en esta lista de supermercado.</p>
+          <button onclick="setCartStoreFilter('all')" class="mt-2 text-xs font-bold text-brand-700 hover:underline">Ver todos los supermercados</button>
+        </div>
+      `;
+      return;
+    }
+
+    storesToRender.forEach(storeId => {
+      const storeMeta = STORE_CONFIG[storeId];
+      const groupData = storeGroups[storeId];
+      const allChecked = groupData.items.length > 0 && groupData.items.every(i => i.checked);
+
+      const storeCard = document.createElement('div');
+      storeCard.className = `bg-white rounded-2xl border ${storeMeta.borderClass || 'border-slate-200'} shadow-sm overflow-hidden transition`;
+
+      // Header
+      const headerEl = document.createElement('div');
+      headerEl.className = `${storeMeta.headerBg} p-3 sm:p-4 flex items-center justify-between gap-2 flex-wrap shadow-sm`;
+      headerEl.innerHTML = `
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-8 h-8 rounded-xl bg-white p-1 flex items-center justify-center shrink-0 shadow-sm">
+            <img src="${storeMeta.logo}" alt="${storeMeta.name}" class="${storeMeta.logoClass}" onerror="this.src='/icon.svg'">
+          </div>
+          <div>
+            <h3 class="font-black text-sm sm:text-base leading-tight flex items-center gap-1.5">
+              <span>${storeMeta.fullName}</span>
+              <span class="text-[10px] bg-white/20 px-2 py-0.5 rounded-full uppercase tracking-wider font-extrabold">${groupData.count} items</span>
+            </h3>
+            <p class="text-[11px] opacity-90 font-medium">${storeMeta.branchInfo}</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <div class="text-right">
+            <span class="text-[10px] uppercase font-bold tracking-wider opacity-85 block">Subtotal</span>
+            <span class="text-base sm:text-lg font-black tracking-tight">${formatMoney(groupData.total)}</span>
+          </div>
+          <button onclick="copyStoreList('${storeId}')" title="Copiar lista de este súper al portapapeles" class="bg-white/20 hover:bg-white/30 text-white p-2 rounded-xl transition active:scale-95 flex items-center gap-1 text-xs font-bold" aria-label="Copiar lista">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+            <span class="hidden sm:inline">Copiar</span>
+          </button>
+        </div>
+      `;
+      storeCard.appendChild(headerEl);
+
+      // Sub-bar with quick checklist controls
+      const subBar = document.createElement('div');
+      subBar.className = 'px-3.5 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-xs text-slate-600';
+      subBar.innerHTML = `
+        <span class="font-bold text-slate-700 flex items-center gap-1">
+          <span>🛒</span>
+          <span>${groupData.items.length} ${groupData.items.length === 1 ? 'producto' : 'productos'} para comprar en ${storeMeta.name}</span>
+        </span>
+        <button onclick="toggleStoreItemsCheck('${storeId}')" class="text-brand-700 hover:text-brand-900 font-bold transition flex items-center gap-1">
+          <span>${allChecked ? 'Desmarcar todos' : 'Marcar todos'}</span>
+        </button>
+      `;
+      storeCard.appendChild(subBar);
+
+      // Items List
+      const listEl = document.createElement('div');
+      listEl.className = 'divide-y divide-slate-100';
+
+      groupData.items.forEach(item => {
+        const row = document.createElement('div');
+        row.className = `p-3 sm:p-3.5 flex items-center justify-between gap-2.5 sm:gap-3 transition ${item.checked ? 'bg-emerald-50/40 opacity-70' : 'hover:bg-slate-50/50'}`;
+
+        // Options for the store switcher dropdown
+        const storeOptionsHtml = storeKeys.map(sId => {
+          const sMeta = STORE_CONFIG[sId];
+          const rawP = item.prices[sId]?.price;
+          if (!rawP || rawP <= 0) return '';
+          const effP = getEffectivePrice(sId, rawP);
+          const isSelected = sId === storeId;
+          return `<option value="${sId}" ${isSelected ? 'selected' : ''}>${sMeta.name}: ${formatMoney(effP)}</option>`;
+        }).filter(Boolean).join('');
+
+        row.innerHTML = `
+          <!-- Checkbox + Thumbnail + Details -->
+          <div class="flex items-center gap-2.5 min-w-0 flex-1">
+            <button onclick="toggleCartItemCheck('${item.id}')" 
+                    type="button"
+                    class="w-6 h-6 rounded-lg border-2 flex items-center justify-center shrink-0 transition active:scale-90 ${item.checked ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs' : 'border-slate-300 hover:border-emerald-500 bg-white'}" 
+                    title="${item.checked ? 'Comprado (click para desmarcar)' : 'Marcar como comprado'}">
+              ${item.checked ? `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>` : ''}
+            </button>
+
+            <div class="w-11 h-11 sm:w-12 sm:h-12 bg-white border border-slate-200 rounded-xl overflow-hidden shrink-0 flex items-center justify-center p-0.5 shadow-2xs">
+              ${item.image ? `<img src="${item.image}" alt="" class="w-full h-full object-contain" onerror="this.src='/icon.svg'"/>` : '📦'}
+            </div>
+
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                ${item.brand ? `<span class="text-[9px] uppercase font-extrabold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded">${item.brand}</span>` : ''}
+              </div>
+              <h4 class="text-xs sm:text-sm font-bold text-slate-900 truncate leading-snug mt-0.5 ${item.checked ? 'line-through text-slate-400' : ''}">${item.title}</h4>
+              
+              <!-- Store Switcher & Subtotal -->
+              <div class="flex items-center gap-2 mt-1 flex-wrap">
+                <span class="text-[11px] font-black text-slate-800">${formatMoney(item.effectiveUnitPrice)} c/u</span>
+                ${item.quantity > 1 ? `<span class="text-[10px] text-emerald-800 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">(Subtotal: ${formatMoney(item.subtotal)})</span>` : ''}
+
+                <!-- Selector de Supermercado -->
+                <div class="flex items-center gap-1 text-[10px]">
+                  <span class="text-slate-400 font-medium">Comprar en:</span>
+                  <select onchange="changeCartItemStore('${item.id}', this.value)" class="bg-white border border-slate-300 text-slate-800 text-[10px] font-bold rounded-md px-1.5 py-0.5 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-2xs">
+                    ${storeOptionsHtml}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quantity Controls & Delete -->
+          <div class="flex items-center gap-1.5 shrink-0">
+            <div class="flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200 shadow-2xs">
+              <button onclick="changeCartItemQty('${item.id}', -1)" class="w-6 h-6 rounded bg-white text-slate-700 font-black text-xs hover:bg-slate-200 transition active:scale-90">-</button>
+              <span class="w-6 text-center text-xs font-black text-slate-800">${item.quantity}</span>
+              <button onclick="changeCartItemQty('${item.id}', 1)" class="w-6 h-6 rounded bg-white text-slate-700 font-black text-xs hover:bg-slate-200 transition active:scale-90">+</button>
+            </div>
+            <button onclick="changeCartItemQty('${item.id}', -${item.quantity})" class="text-slate-300 hover:text-red-600 p-1.5 transition active:scale-90" title="Eliminar de la canasta">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </button>
+          </div>
+        `;
+        listEl.appendChild(row);
+      });
+
+      storeCard.appendChild(listEl);
+
+      // Card Footer with Supermarket Subtotal
+      const footerEl = document.createElement('div');
+      footerEl.className = 'p-3 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between text-xs flex-wrap gap-2';
+      footerEl.innerHTML = `
+        <span class="text-slate-500 font-medium">Total estimado para pagar en ${storeMeta.name}:</span>
+        <span class="font-black text-sm text-slate-900">${formatMoney(groupData.total)}</span>
+      `;
+      storeCard.appendChild(footerEl);
+
+      groupsContainer.appendChild(storeCard);
+    });
+  }
 }
 
-// Share List by WhatsApp
+// Share List by WhatsApp (Organized by Supermarket)
 function shareListWhatsApp() {
   if (state.cart.length === 0) return;
 
   let text = `🛒 *MI LISTA DE COMPRAS - LAS FLORES*\n`;
   text += `📅 Fecha: ${new Date().toLocaleDateString('es-AR')}\n\n`;
 
-  // Group items by cheapest store
-  const split = {
-    'Golópolis (Las Flores)': [],
-    'Actual (Las Flores)': [],
-    'Día%': [],
-    'Mercado Libre (Full ⚡)': []
-  };
+  const storeKeys = ['dia', 'actual', 'golopolis', 'mercadolibre'];
+  let grandTotal = 0;
 
-  let totalOptimo = 0;
+  storeKeys.forEach(storeId => {
+    const storeMeta = STORE_CONFIG[storeId];
+    const storeItems = state.cart.filter(i => (i.selectedStore || getBestStoreForCard(i)) === storeId);
+    if (storeItems.length === 0) return;
 
-  state.cart.forEach(item => {
-    const qty = item.quantity;
-    const pGolo = item.prices.golopolis?.price ? getEffectivePrice('golopolis', item.prices.golopolis.price) : null;
-    const pAct = item.prices.actual?.price ? getEffectivePrice('actual', item.prices.actual.price) : null;
-    const pDia = item.prices.dia?.price ? getEffectivePrice('dia', item.prices.dia.price) : null;
-    const pMeli = item.prices.mercadolibre?.price ? getEffectivePrice('mercadolibre', item.prices.mercadolibre.price) : null;
+    let storeSubtotal = 0;
+    const totalUnits = storeItems.reduce((s, i) => s + i.quantity, 0);
+    text += `${storeMeta.emoji} *${storeMeta.fullName ? storeMeta.fullName.toUpperCase() : storeMeta.name.toUpperCase()}* (${totalUnits} ${totalUnits === 1 ? 'producto' : 'productos'}):\n`;
 
-    const opts = [
-      { name: 'Golópolis (Las Flores)', price: pGolo },
-      { name: 'Actual (Las Flores)', price: pAct },
-      { name: 'Día%', price: pDia },
-      { name: 'Mercado Libre (Full ⚡)', price: pMeli, url: item.prices.mercadolibre?.url }
-    ].filter(o => o.price !== null && o.price > 0);
+    storeItems.forEach(item => {
+      const p = item.prices[storeId]?.price ? getEffectivePrice(storeId, item.prices[storeId].price) : null;
+      const sub = p ? p * item.quantity : 0;
+      storeSubtotal += sub;
+      const checkMark = item.checked ? '✅' : '▫️';
+      const priceText = p ? ` - ${formatMoney(sub)} (${formatMoney(p)} c/u)` : '';
+      const meliLink = (storeId === 'mercadolibre' && item.prices.mercadolibre?.url) ? `\n    📲 Comprar en MELI: ${item.prices.mercadolibre.url}` : '';
+      text += `${checkMark} ${item.quantity}x ${item.title}${priceText}${meliLink}\n`;
+    });
 
-    opts.sort((a, b) => a.price - b.price);
-    if (opts.length > 0) {
-      const best = opts[0];
-      totalOptimo += best.price * qty;
-      const meliLink = (best.url && best.name.includes('Mercado Libre')) ? `\n    📲 Comprar en MELI: ${best.url}` : '';
-      split[best.name].push(`  • ${qty}x ${item.title} - ${formatMoney(best.price * qty)}${meliLink}`);
-    }
+    text += `👉 *Subtotal en ${storeMeta.name}:* ${formatMoney(storeSubtotal)}\n\n`;
+    grandTotal += storeSubtotal;
   });
 
-  for (const [storeName, items] of Object.entries(split)) {
-    if (items.length > 0) {
-      text += `📍 *${storeName}:*\n${items.join('\n')}\n\n`;
-    }
-  }
-
-  text += `🏆 *Total Óptimo a Pagar:* ${formatMoney(totalOptimo)}\n`;
+  text += `🏆 *TOTAL A PAGAR:* ${formatMoney(grandTotal)}\n`;
   text += `_Generado con Súper Comparador Las Flores_`;
 
   const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
@@ -1033,6 +1384,10 @@ function loadSavedList(listId) {
 
   if (confirm(`¿Cargar la lista "${list.name}" a tu canasta actual?`)) {
     state.cart = JSON.parse(JSON.stringify(list.items));
+    state.cart.forEach(item => {
+      if (!item.selectedStore) item.selectedStore = getBestStoreForCard(item);
+      if (typeof item.checked !== 'boolean') item.checked = false;
+    });
     saveCart();
     switchTab('cart');
   }
