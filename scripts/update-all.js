@@ -20,9 +20,11 @@ function getFormattedSpanishDate(d = new Date()) {
   return `${d.getDate()} de ${months[d.getMonth()]} de ${d.getFullYear()}`;
 }
 
-export async function runWeeklyUpdatePipeline() {
+export async function runWeeklyUpdatePipeline(options = {}) {
+  const skipMeli = options.skipMeli ?? process.argv.some(arg => /--skip-meli|--no-meli|--sin-meli/i.test(arg));
+
   console.log('====================================================');
-  console.log('[AUTO-UPDATE PIPELINE] INICIANDO ACTUALIZACIÓN SEMANAL');
+  console.log(`[AUTO-UPDATE PIPELINE] INICIANDO ACTUALIZACIÓN SEMANAL${skipMeli ? ' (SIN MERCADO LIBRE)' : ''}`);
   console.log(`Fecha: ${new Date().toISOString()} (${getFormattedSpanishDate()})`);
   console.log('====================================================\n');
 
@@ -55,13 +57,36 @@ export async function runWeeklyUpdatePipeline() {
   }
 
   // 3. Actualizar Mercado Libre Full Super
-  try {
-    console.log('\n--- PASO 3/3: Actualizando Mercado Libre Full Super ---');
-    results.mercadolibre = await crawlMercadoLibreCatalog();
-    console.log(`✓ Mercado Libre finalizado: ${results.mercadolibre} productos.`);
-  } catch (err) {
-    console.error('✗ Error actualizando Mercado Libre:', err.message);
-    results.errors.push(`Mercado Libre: ${err.message}`);
+  let existingMeliCount = 0;
+  if (fs.existsSync(INFO_FILE)) {
+    try {
+      const prevInfo = JSON.parse(fs.readFileSync(INFO_FILE, 'utf8'));
+      existingMeliCount = prevInfo.totalProducts?.mercadolibre || 0;
+    } catch (e) {}
+  }
+  if (!existingMeliCount) {
+    const meliFile = path.join(DATA_DIR, 'mercadolibre.json');
+    if (fs.existsSync(meliFile)) {
+      try {
+        const meliData = JSON.parse(fs.readFileSync(meliFile, 'utf8'));
+        existingMeliCount = Array.isArray(meliData) ? meliData.length : 0;
+      } catch (e) {}
+    }
+  }
+
+  if (skipMeli) {
+    console.log('\n--- PASO 3/3: Mercado Libre (OMITIDO POR SOLICITUD) ---');
+    console.log(`ℹ Mercado Libre omitido. Se conservan los ${existingMeliCount} productos actuales.`);
+    results.mercadolibre = existingMeliCount;
+  } else {
+    try {
+      console.log('\n--- PASO 3/3: Actualizando Mercado Libre Full Super ---');
+      results.mercadolibre = await crawlMercadoLibreCatalog();
+      console.log(`✓ Mercado Libre finalizado: ${results.mercadolibre} productos.`);
+    } catch (err) {
+      console.error('✗ Error actualizando Mercado Libre:', err.message);
+      results.errors.push(`Mercado Libre: ${err.message}`);
+    }
   }
 
   // 4. Actualizar metadata de fecha

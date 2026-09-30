@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "update:local": "node scripts/update-all.js --skip-meli",
+    "update:all": "node scripts/update-all.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

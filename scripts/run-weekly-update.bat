@@ -13,7 +13,7 @@ echo [INICIO DE EJECUCION] %DATE% %TIME% >> logs\weekly-update.log
 echo ==================================================== >> logs\weekly-update.log
 
 :: Ejecutar el pipeline de actualización con Node.js
-node scripts/update-all.js >> logs\weekly-update.log 2>&1
+node scripts/update-all.js %* >> logs\weekly-update.log 2>&1
 
 echo [FIN DE EJECUCION] Codigo de salida: %ERRORLEVEL% >> logs\weekly-update.log
 echo. >> logs\weekly-update.log
