@@ -199,6 +199,8 @@ function updatePriceDates(dateStr) {
   if (headerEl) headerEl.textContent = dateStr;
   const searchEl = document.getElementById('searchLastUpdateDate');
   if (searchEl) searchEl.textContent = dateStr;
+  const auditEl = document.getElementById('auditLastDate');
+  if (auditEl) auditEl.textContent = dateStr;
 }
 
 // Get cheapest / best available store for a card or cart item

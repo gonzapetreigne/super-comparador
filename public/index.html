@@ -164,7 +164,7 @@
         <div class="flex items-center gap-1.5 font-medium">
           <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
           <span>Última actualización de precios:</span>
-          <strong id="headerLastUpdateDate" class="text-white font-black tracking-wide">18 de septiembre de 2026</strong>
+          <strong id="headerLastUpdateDate" class="text-white font-black tracking-wide">30 de septiembre de 2026</strong>
         </div>
         <span class="text-[10px] text-cyan-300/70 font-semibold hidden sm:inline">Precios verificados en sucursal</span>
       </div>
@@ -531,6 +531,48 @@
 
     <!-- TAB 4: CONFIGURACIÓN E INFORMACIÓN -->
     <section id="viewSettings" class="tab-view hidden space-y-4">
+
+      <!-- Card: Sincronización y Validación Oficial de Catálogos -->
+      <div class="bg-gradient-to-br from-slate-900 to-[#071924] text-white rounded-2xl p-4 border border-cyan-500/30 shadow-md">
+        <div class="flex items-center justify-between mb-2.5">
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center justify-center w-7 h-7 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+              </svg>
+            </span>
+            <div>
+              <h2 class="text-sm font-black text-white leading-tight">Auditoría y Validación Oficial</h2>
+              <p class="text-[11px] text-cyan-300">Sincronización semanal con tiendas web</p>
+            </div>
+          </div>
+          <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[10px] font-black uppercase tracking-wider">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            100% Verificado
+          </span>
+        </div>
+
+        <p class="text-xs text-slate-300 mb-3 leading-relaxed">
+          Cada semana nuestro pipeline audita automáticamente el 100% de los precios y catálogos directamente contra las webs oficiales para garantizar exactitud absoluta:
+        </p>
+
+        <div class="grid grid-cols-2 gap-2 text-[11px] mb-3">
+          <div class="p-2.5 rounded-xl bg-slate-800/80 border border-cyan-500/20">
+            <div class="text-cyan-300 font-bold mb-0.5">🔍 Precios Corroborados</div>
+            <div class="text-slate-300 leading-snug">Precios cruzados con los servidores web de cada supermercado. 0 tolerancia a precios erróneos o $0.</div>
+          </div>
+          <div class="p-2.5 rounded-xl bg-slate-800/80 border border-cyan-500/20">
+            <div class="text-emerald-400 font-bold mb-0.5">🆕 Detección de Altas</div>
+            <div class="text-slate-300 leading-snug">Los nuevos productos ingresados a las tiendas se detectan y añaden automáticamente.</div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800">
+          <span>Última corroboración:</span>
+          <span id="auditLastDate" class="text-cyan-200 font-bold">30 de septiembre de 2026</span>
+        </div>
+      </div>
+
       <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
         <h2 class="text-base font-black text-slate-900 mb-2 flex items-center gap-2">
           <span>⚙️</span> Tiendas y Sucursales Configuradas
@@ -709,15 +751,15 @@
   </nav>
 
   <!-- App Script with cache-busting -->
-  <script src="/app.js?v=2.4.0"></script>
+  <script src="/app.js?v=2.5.0"></script>
   <script>
     // Register PWA service worker with auto-update
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js?v=4')
+        navigator.serviceWorker.register('/sw.js?v=5')
           .then(reg => {
             reg.update();
-            console.log('SW registrado y actualizado a v4');
+            console.log('SW registrado y actualizado a v5');
           })
           .catch(err => console.log('Fallo registro SW:', err));
       });

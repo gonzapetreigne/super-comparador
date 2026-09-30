@@ -6,5 +6,19 @@
     "actual": 2614,
     "golopolis": 4732,
     "mercadolibre": 5191
+  },
+  "validation": {
+    "status": "PASSED",
+    "checkedAt": "2026-09-30T14:17:05.817Z",
+    "newProductsAdded": {
+      "actual": 0,
+      "golopolis": 0,
+      "mercadolibre": 0
+    },
+    "liveVerification": {
+      "actual": "VERIFIED_MATCH",
+      "golopolis": "VERIFIED_MATCH",
+      "dia": "LIVE_STREAMING_OK"
+    }
   }
 }

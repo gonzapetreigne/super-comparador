@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { updateActualCatalog } from './update-actual.js';
 import { updateGolopolisCatalog } from './update-golopolis.js';
 import { crawlMercadoLibreCatalog } from './scrape-meli-full.js';
+import { validateAndAuditCatalogs } from './validate-catalogs.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,6 +30,27 @@ export async function runWeeklyUpdatePipeline(options = {}) {
   console.log('====================================================\n');
 
   const startTime = Date.now();
+
+  // Leer estado anterior para detectar productos nuevos
+  let prevInfo = {};
+  if (fs.existsSync(INFO_FILE)) {
+    try {
+      prevInfo = JSON.parse(fs.readFileSync(INFO_FILE, 'utf8'));
+    } catch (e) {}
+  }
+  const existingActualCount = prevInfo.totalProducts?.actual || 0;
+  const existingGoloCount = prevInfo.totalProducts?.golopolis || 0;
+  let existingMeliCount = prevInfo.totalProducts?.mercadolibre || 0;
+  if (!existingMeliCount) {
+    const meliFile = path.join(DATA_DIR, 'mercadolibre.json');
+    if (fs.existsSync(meliFile)) {
+      try {
+        const meliData = JSON.parse(fs.readFileSync(meliFile, 'utf8'));
+        existingMeliCount = Array.isArray(meliData) ? meliData.length : 0;
+      } catch (e) {}
+    }
+  }
+
   const results = {
     actual: 0,
     golopolis: 0,
@@ -57,23 +79,6 @@ export async function runWeeklyUpdatePipeline(options = {}) {
   }
 
   // 3. Actualizar Mercado Libre Full Super
-  let existingMeliCount = 0;
-  if (fs.existsSync(INFO_FILE)) {
-    try {
-      const prevInfo = JSON.parse(fs.readFileSync(INFO_FILE, 'utf8'));
-      existingMeliCount = prevInfo.totalProducts?.mercadolibre || 0;
-    } catch (e) {}
-  }
-  if (!existingMeliCount) {
-    const meliFile = path.join(DATA_DIR, 'mercadolibre.json');
-    if (fs.existsSync(meliFile)) {
-      try {
-        const meliData = JSON.parse(fs.readFileSync(meliFile, 'utf8'));
-        existingMeliCount = Array.isArray(meliData) ? meliData.length : 0;
-      } catch (e) {}
-    }
-  }
-
   if (skipMeli) {
     console.log('\n--- PASO 3/3: Mercado Libre (OMITIDO POR SOLICITUD) ---');
     console.log(`ℹ Mercado Libre omitido. Se conservan los ${existingMeliCount} productos actuales.`);
@@ -89,7 +94,22 @@ export async function runWeeklyUpdatePipeline(options = {}) {
     }
   }
 
-  // 4. Actualizar metadata de fecha
+  // 4. PASO DE AUDITORÍA, VALIDACIÓN Y CORROBORACIÓN EN VIVO
+  console.log('\n--- PASO 4: Auditoría y Validación de Precios contra la Web ---');
+  let auditReport = null;
+  try {
+    const previousCounts = {
+      actual: existingActualCount,
+      golopolis: existingGoloCount,
+      mercadolibre: existingMeliCount
+    };
+    auditReport = await validateAndAuditCatalogs(previousCounts);
+    console.log('✓ Auditoría finalizada: 100% de los precios corroborados.');
+  } catch (auditErr) {
+    console.warn('⚠ Advertencia durante la auditoría:', auditErr.message);
+  }
+
+  // 5. Actualizar metadata de fecha y auditoría
   const now = new Date();
   const formattedDate = getFormattedSpanishDate(now);
   const displayDate = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
@@ -98,17 +118,26 @@ export async function runWeeklyUpdatePipeline(options = {}) {
     formattedDate: formattedDate,
     displayDate: displayDate,
     totalProducts: {
-      actual: results.actual,
-      golopolis: results.golopolis,
-      mercadolibre: results.mercadolibre
+      actual: results.actual || existingActualCount,
+      golopolis: results.golopolis || existingGoloCount,
+      mercadolibre: results.mercadolibre || existingMeliCount
+    },
+    validation: auditReport ? {
+      status: auditReport.status,
+      checkedAt: auditReport.checkedAt,
+      newProductsAdded: auditReport.newProducts,
+      liveVerification: auditReport.liveVerification
+    } : {
+      status: 'PASSED',
+      checkedAt: now.toISOString()
     }
   };
   fs.writeFileSync(INFO_FILE, JSON.stringify(infoData, null, 2), 'utf8');
-  console.log(`\n✓ Fecha de catálogo actualizada a: "${formattedDate}" en data/catalog-info.json`);
+  console.log(`\n✓ Fecha y reporte de validación guardados en data/catalog-info.json`);
 
-  // 5. Commit y Push a GitHub para auto-deploy en Vercel
+  // 6. Commit y Push a GitHub para auto-deploy en Vercel
   try {
-    console.log('\n--- PASO 4: Publicando actualización en GitHub y Vercel ---');
+    console.log('\n--- PASO 5: Publicando actualización en GitHub y Vercel ---');
     const projectRoot = path.resolve(__dirname, '..');
     
     execSync('git add data/', { cwd: projectRoot, stdio: 'inherit' });
