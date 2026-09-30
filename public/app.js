@@ -555,6 +555,148 @@ async function fetchMeliBackground(query, searchId) {
   }
 }
 
+// Render a compact horizontal store card (used on the left in the 3-store layout)
+function renderHorizontalPill(store, card) {
+  if (!store) {
+    return `<div class="p-2 sm:p-2.5 rounded-xl border border-slate-200 bg-slate-50 flex-1"></div>`;
+  }
+  const p = store.data;
+  const theme = store.theme;
+  const isAvailable = p && p.price > 0 && p.available !== false;
+  const effPrice = isAvailable ? getEffectivePrice(store.id, p.price) : 0;
+
+  if (!isAvailable) {
+    return `
+      <div class="p-2 sm:p-2.5 rounded-xl border ${theme.unavailBorder} ${theme.unavailBg} flex flex-col justify-between opacity-75 flex-1 transition">
+        <div class="flex items-center justify-between gap-1 mb-1">
+          <div class="flex items-center gap-1.5 min-w-0">
+            <img src="${store.logo}" alt="${store.name}" class="${store.logoClass} opacity-60 shrink-0" onerror="this.style.display='none'" />
+            <span class="text-[10px] sm:text-[11px] font-bold ${theme.unavailText} truncate">${store.name}</span>
+          </div>
+          <span class="text-[9px] text-slate-400/70 truncate shrink-0">${store.id === 'dia' ? 'Online' : 'Sucursal'}</span>
+        </div>
+        <div class="text-[10px] sm:text-[11px] text-slate-400 font-medium">
+          No disponible
+        </div>
+      </div>
+    `;
+  }
+
+  let addBtn = '';
+  if (store.id === 'dia') {
+    addBtn = `
+      <button onclick="addToCart('${card.id}', 'dia')" class="py-1 px-2 rounded-lg text-[10px] font-black transition active:scale-95 bg-red-50 hover:bg-red-100 text-red-900 border border-red-200 shrink-0" title="Agregar Día% a la canasta">
+        + Día%
+      </button>
+    `;
+  } else {
+    addBtn = `
+      <button onclick="addToCart('${card.id}', '${store.id}')" class="py-1 px-2 rounded-lg text-[10px] font-black transition active:scale-95 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 shrink-0" title="Agregar ${store.name} a la canasta">
+        + ${store.shortName || store.name}
+      </button>
+    `;
+  }
+
+  return `
+    <div class="p-2 sm:p-2.5 rounded-xl border ${theme.border} ${theme.bg} flex flex-col justify-between flex-1 transition hover:shadow-xs">
+      <!-- Header: Logo, Nombre y Branch -->
+      <div class="flex items-center justify-between gap-1 mb-1">
+        <div class="flex items-center gap-1.5 min-w-0">
+          <img src="${store.logo}" alt="${store.name}" class="${store.logoClass} shrink-0 drop-shadow-xs" onerror="this.style.display='none'" />
+          <span class="text-[10px] sm:text-[11px] font-black ${theme.nameColor} truncate">${store.name}</span>
+        </div>
+        <span class="text-[9px] ${theme.subColor} truncate shrink-0">${p.unitPriceText || store.branch}</span>
+      </div>
+
+      <!-- Precio y Botón Agregar -->
+      <div class="flex items-center justify-between gap-2 mt-1">
+        <div class="min-w-0">
+          <div class="text-xs sm:text-sm font-black ${theme.priceColor}">
+            ${formatMoney(effPrice)}
+          </div>
+          ${p.originalPrice && p.originalPrice > p.price ? `
+            <div class="text-[9px] text-slate-400 line-through leading-none">${formatMoney(p.originalPrice)}</div>
+          ` : (effPrice < p.price ? `
+            <div class="flex items-center gap-1">
+              <span class="text-[9px] text-slate-400 line-through leading-none">${formatMoney(p.price)}</span>
+              <span class="text-[8px] font-black text-emerald-600 bg-emerald-50 px-1 rounded">-${Math.round((1 - effPrice / p.price) * 100)}%</span>
+            </div>
+          ` : '')}
+        </div>
+        ${addBtn}
+      </div>
+    </div>
+  `;
+}
+
+// Render the tall vertical winner store card (used on the right in the 3-store layout)
+function renderWinnerVerticalPill(store, card, hasCompetition) {
+  if (!store) return '';
+  const p = store.data;
+  const isAvailable = p && p.price > 0 && p.available !== false;
+  const effPrice = isAvailable ? getEffectivePrice(store.id, p.price) : 0;
+
+  let actionBtnHtml = '';
+  if (store.id === 'dia') {
+    actionBtnHtml = `
+      <div class="mt-2 space-y-1">
+        <button onclick="addToCart('${card.id}', 'dia')" class="w-full py-1.5 px-2 rounded-xl text-xs font-black transition active:scale-95 flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs">
+          <span>+</span><span>Día%</span>
+        </button>
+        ${p?.url ? `
+          <a href="${p.url}" target="_blank" rel="noopener noreferrer" class="w-full py-0.5 px-1 text-red-700 hover:underline font-bold text-[9px] transition flex items-center justify-center gap-0.5 text-center">
+            <span>Día Online</span>
+            <svg class="w-2.5 h-2.5 text-red-700 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline></svg>
+          </a>
+        ` : ''}
+      </div>
+    `;
+  } else {
+    actionBtnHtml = `
+      <div class="mt-2">
+        <button onclick="addToCart('${card.id}', '${store.id}')" class="w-full py-1.5 px-2 rounded-xl text-xs font-black transition active:scale-95 flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs">
+          <span>+</span><span>${store.name}</span>
+        </button>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="p-2.5 sm:p-3 rounded-xl border-2 border-emerald-500 bg-gradient-to-b from-emerald-50/95 via-emerald-50/70 to-emerald-50/40 shadow-sm ring-1 ring-emerald-500/30 flex flex-col justify-between h-full transition hover:shadow-xs">
+      <!-- Top: Nombre, Logo y Badge MEJOR -->
+      <div>
+        <div class="flex items-center justify-between gap-1 mb-1">
+          <span class="text-[11px] sm:text-xs font-black text-emerald-950 truncate">${store.name}</span>
+          <div class="flex items-center gap-1 shrink-0">
+            ${hasCompetition ? '<span class="text-[8px] sm:text-[9px] bg-emerald-600 text-white font-black px-1.5 py-0.5 rounded-full uppercase tracking-tight shadow-xs">MEJOR</span>' : ''}
+            <img src="${store.logo}" alt="${store.name}" class="${store.logoClass} drop-shadow-xs" onerror="this.style.display='none'" />
+          </div>
+        </div>
+        <span class="text-[9px] text-emerald-900/70 font-semibold block truncate">${p?.unitPriceText || store.branch}</span>
+      </div>
+
+      <!-- Center: Big Price -->
+      <div class="my-2">
+        <span class="text-[9px] text-emerald-800 font-extrabold uppercase tracking-wider block">Mejor precio</span>
+        <div class="text-base sm:text-xl font-black text-emerald-700 tracking-tight leading-tight">
+          ${effPrice > 0 ? formatMoney(effPrice) : '-'}
+        </div>
+        ${p?.originalPrice && p.originalPrice > p.price ? `
+          <div class="text-[10px] text-slate-400 line-through">${formatMoney(p.originalPrice)}</div>
+        ` : (effPrice < p?.price ? `
+          <div class="flex items-center gap-1 mt-0.5">
+            <span class="text-[10px] text-slate-400 line-through">${formatMoney(p.price)}</span>
+            <span class="text-[9px] font-black text-emerald-600 bg-emerald-100/80 px-1 rounded">-${Math.round((1 - effPrice / p.price) * 100)}%</span>
+          </div>
+        ` : '')}
+      </div>
+
+      <!-- Bottom: Action button -->
+      ${actionBtnHtml}
+    </div>
+  `;
+}
+
 // Render Comparison Cards
 function renderCards(cards) {
   const container = document.getElementById('resultsContainer');
@@ -570,6 +712,7 @@ function renderCards(cards) {
       {
         id: 'golopolis',
         name: 'Golópolis',
+        shortName: 'Golópolis',
         branch: 'Las Flores',
         logo: '/logos/golopolis.svg',
         logoClass: 'h-3.5 max-w-[36px] object-contain',
@@ -588,6 +731,7 @@ function renderCards(cards) {
       {
         id: 'actual',
         name: 'Actual',
+        shortName: 'Actual',
         branch: 'Las Flores',
         logo: '/logos/actual.png',
         logoClass: 'h-3.5 w-3.5 object-contain rounded-full shadow-xs',
@@ -606,6 +750,7 @@ function renderCards(cards) {
       {
         id: 'dia',
         name: 'Día%',
+        shortName: 'Día%',
         branch: 'Online',
         logo: '/logos/dia.svg',
         logoClass: 'h-3.5 object-contain rounded shadow-xs',
@@ -627,6 +772,7 @@ function renderCards(cards) {
       stores.push({
         id: 'mercadolibre',
         name: 'Mercado Libre',
+        shortName: 'MELI',
         branch: 'Full ⚡',
         logo: '/logos/mercadolibre.svg',
         logoClass: 'h-4 w-4 object-contain',
@@ -822,7 +968,47 @@ function renderCards(cards) {
       `;
     }
 
-    const gridColsClass = state.promos.meliFull ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-1 sm:grid-cols-3';
+    let comparisonGridHtml = '';
+
+    if (state.promos.meliFull) {
+      // FORMATO ANTERIOR: 4 cuadrículas comparativas (Golópolis, Actual, Día%, Mercado Libre)
+      comparisonGridHtml = `
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+          ${storePillsHtml}
+        </div>
+      `;
+    } else {
+      // FORMATO NUEVO SIN MERCADO LIBRE:
+      // 2 rectángulos horizontales a la izquierda (supermercados con mayor precio)
+      // 1 rectángulo vertical a la derecha (supermercado con el MEJOR precio)
+      const winnerStore = (cheapest && stores.find(s => s.id === cheapest.id)) || stores[0];
+      const otherStores = stores.filter(s => s.id !== winnerStore.id);
+
+      // Ordenar los 2 restantes: el de menor precio arriba, el de mayor precio (o no disponible) abajo
+      otherStores.sort((a, b) => {
+        const aAvail = a.data && a.data.price > 0 && a.data.available !== false;
+        const bAvail = b.data && b.data.price > 0 && b.data.available !== false;
+        if (!aAvail && bAvail) return 1;
+        if (aAvail && !bAvail) return -1;
+        if (!aAvail && !bAvail) return 0;
+        return getEffectivePrice(a.id, a.data.price) - getEffectivePrice(b.id, b.data.price);
+      });
+
+      comparisonGridHtml = `
+        <div class="grid grid-cols-2 gap-2 mt-3 items-stretch">
+          <!-- Columna izquierda: 2 rectángulos horizontales con mayor precio -->
+          <div class="flex flex-col gap-2 justify-between">
+            ${renderHorizontalPill(otherStores[0], card)}
+            ${renderHorizontalPill(otherStores[1], card)}
+          </div>
+
+          <!-- Columna derecha: 1 rectángulo vertical con el MEJOR precio -->
+          <div class="h-full">
+            ${renderWinnerVerticalPill(winnerStore, card, availableStores.length > 1)}
+          </div>
+        </div>
+      `;
+    }
 
     cardEl.innerHTML = `
       <div class="flex gap-3">
@@ -850,10 +1036,8 @@ function renderCards(cards) {
         </div>
       </div>
 
-      <!-- Grid de tiendas -->
-      <div class="grid ${gridColsClass} gap-2 mt-3">
-        ${storePillsHtml}
-      </div>
+      <!-- Grid de tiendas (4 cuadrículas o 2 horizontales + 1 vertical) -->
+      ${comparisonGridHtml}
 
       <!-- Alternativas -->
       ${alternativesHtml}
