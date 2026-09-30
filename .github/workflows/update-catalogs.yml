@@ -1,0 +1,35 @@
+name: Actualización Automática de Precios
+
+on:
+  schedule:
+    # Se ejecuta todos los lunes a las 07:00 UTC (04:00 AM hora de Argentina)
+    - cron: '0 7 * * 1'
+  workflow_dispatch: # Permite ejecutar en cualquier momento con un clic desde GitHub
+
+permissions:
+  contents: write
+
+jobs:
+  update-catalogs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Configurar identidad Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Ejecutar actualización semanal (sin Mercado Libre)
+        run: node scripts/update-all.js --skip-meli
