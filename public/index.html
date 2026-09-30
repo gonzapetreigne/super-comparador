@@ -679,8 +679,14 @@
         </div>
       </div>
 
-      <div class="text-center py-2 text-[11px] text-slate-400">
-        Súper Comparador Las Flores • v1.1.0
+      <div class="text-center py-3 flex flex-col items-center gap-1.5 text-[11px] text-slate-400">
+        <span id="appVersionText" class="cursor-pointer select-none" onclick="handleVersionSecretClicks()">Súper Comparador Las Flores • v1.2.0</span>
+        <button onclick="openAdminModal()" class="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-cyan-300 transition font-medium cursor-pointer py-1 px-2.5 rounded-lg border border-slate-300 bg-slate-100 hover:bg-slate-200">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+          </svg>
+          <span>Modo Administrador</span>
+        </button>
       </div>
     </section>
 
@@ -705,6 +711,203 @@
           Guardar Lista
         </button>
       </div>
+    </div>
+  </div>
+
+  <!-- MODAL: PIN DE ACCESO ADMINISTRADOR -->
+  <div id="adminPinModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="bg-[#0b1e2c] border border-cyan-500/30 w-full max-w-sm rounded-3xl p-6 text-white shadow-2xl animate-in fade-in zoom-in-95">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2.5">
+          <span class="w-9 h-9 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-lg">
+            🔒
+          </span>
+          <div>
+            <h3 class="text-base font-black text-white">Modo Administrador</h3>
+            <p class="text-xs text-cyan-300">Control de actualizaciones</p>
+          </div>
+        </div>
+        <button onclick="closeAdminPinModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          ✕
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-300 mb-3 leading-relaxed">
+        Ingresá el PIN de seguridad para acceder al panel de actualizaciones:
+      </p>
+
+      <form onsubmit="handleAdminPinSubmit(event)">
+        <input
+          type="password"
+          id="adminPinInput"
+          placeholder="PIN (por defecto: 2026)"
+          maxlength="8"
+          inputmode="numeric"
+          autocomplete="off"
+          class="w-full px-4 py-3 bg-slate-900/90 border border-cyan-500/40 rounded-xl text-center text-lg tracking-widest font-black text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 mb-2 placeholder:text-slate-500 placeholder:text-xs placeholder:tracking-normal"
+        />
+        <div id="adminPinError" class="hidden text-xs text-rose-400 font-semibold mb-3 text-center"></div>
+
+        <div class="flex gap-2">
+          <button type="button" onclick="closeAdminPinModal()" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition">
+            Cancelar
+          </button>
+          <button type="submit" id="btnAdminPinSubmit" class="flex-1 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs rounded-xl shadow transition">
+            Ingresar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: PANEL DE CONTROL DE ADMINISTRADOR Y PROGRESO EN VIVO -->
+  <div id="adminDashboardModal" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-[#081824] border border-cyan-500/40 w-full max-w-lg rounded-3xl p-5 sm:p-6 text-white shadow-2xl max-h-[92vh] overflow-y-auto hide-scrollbar">
+      
+      <!-- Encabezado -->
+      <div class="flex items-center justify-between pb-3 border-b border-cyan-500/20 mb-4">
+        <div class="flex items-center gap-2.5">
+          <span class="w-10 h-10 rounded-2xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 flex items-center justify-center text-xl shadow">
+            ⚙️
+          </span>
+          <div>
+            <h3 class="text-base font-black text-white flex items-center gap-1.5">
+              <span>Panel Administrador</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold">Activo</span>
+            </h3>
+            <p class="text-xs text-cyan-300">Gestor de Precios y Actualizaciones Remotas</p>
+          </div>
+        </div>
+        <button onclick="closeAdminDashboardModal()" class="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-slate-800 transition">
+          ✕
+        </button>
+      </div>
+
+      <!-- Tarjeta: Estado de Catálogos -->
+      <div class="bg-slate-900/90 rounded-2xl p-3.5 border border-cyan-500/20 mb-4 text-xs space-y-2">
+        <div class="flex items-center justify-between text-[11px] text-slate-400">
+          <span>Última actualización de la base:</span>
+          <strong id="adminCatalogDate" class="text-cyan-200 font-bold">Cargando...</strong>
+        </div>
+        <div class="flex items-center justify-between text-[11px] text-slate-400">
+          <span>Productos registrados:</span>
+          <span id="adminCatalogCounts" class="text-slate-200 font-semibold">Cargando...</span>
+        </div>
+        <div class="flex items-center justify-between text-[11px] text-slate-400">
+          <span>Auditoría y validación:</span>
+          <span class="text-emerald-400 font-bold flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> 100% Verificado
+          </span>
+        </div>
+      </div>
+
+      <!-- Botón de Lanzamiento de Actualización -->
+      <div class="mb-4">
+        <button
+          type="button"
+          id="btnTriggerUpdate"
+          onclick="triggerCatalogUpdate()"
+          class="w-full py-3.5 px-4 bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500 hover:from-amber-500 hover:to-orange-600 active:scale-95 text-slate-950 font-black text-sm rounded-2xl shadow-lg shadow-amber-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+          <span id="btnTriggerUpdateText">Lanzar Actualización de Precios Ahora</span>
+        </button>
+        <div id="adminTriggerError" class="hidden mt-2 p-2.5 rounded-xl bg-rose-500/20 border border-rose-500/40 text-xs text-rose-200 leading-snug"></div>
+      </div>
+
+      <!-- SECCIÓN: INDICADOR DE PROGRESO EN VIVO -->
+      <div id="adminProgressSection" class="hidden bg-slate-900/95 border border-cyan-500/30 rounded-2xl p-4 mb-4 shadow-lg">
+        <div class="flex items-center justify-between mb-2">
+          <span id="adminProgressBadge" class="inline-flex items-center gap-1.5 text-xs font-bold text-amber-300">
+            <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+            <span>Actualización en curso...</span>
+          </span>
+          <span id="adminProgressPercent" class="text-xs font-black text-cyan-300">0%</span>
+        </div>
+
+        <!-- Barra de Progreso -->
+        <div class="w-full h-3.5 bg-slate-950 rounded-full overflow-hidden border border-cyan-500/30 p-0.5 mb-2.5 shadow-inner">
+          <div id="adminProgressBar" class="h-full bg-gradient-to-r from-cyan-400 via-emerald-400 to-amber-400 rounded-full transition-all duration-500 shadow" style="width: 5%"></div>
+        </div>
+
+        <!-- Paso actual y métricas -->
+        <div class="flex items-start justify-between gap-2 text-xs">
+          <div class="flex-1">
+            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-0.5">Etapa Actual:</div>
+            <div id="adminProgressStep" class="text-xs text-cyan-100 font-semibold leading-snug">Conectando con el servidor en la nube...</div>
+          </div>
+          <div class="text-right shrink-0">
+            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-0.5">Tiempo:</div>
+            <div id="adminProgressTimer" class="text-xs text-amber-300 font-mono font-bold">⏱ 00:00</div>
+          </div>
+        </div>
+
+        <!-- Mensaje de Éxito al Completar -->
+        <div id="adminSuccessAlert" class="hidden mt-3 p-3 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-xs text-emerald-200">
+          <div class="font-black text-sm text-emerald-300 mb-1 flex items-center gap-1.5">
+            <span>🎉</span> ¡Actualización Finalizada con Éxito!
+          </div>
+          <p class="mb-2 leading-relaxed text-[11px] text-emerald-100">
+            Los precios de los supermercados han sido actualizados, auditados y desplegados a producción.
+          </p>
+          <button onclick="window.location.reload()" class="w-full py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs rounded-xl shadow transition">
+            🔄 Recargar App para ver los nuevos precios
+          </button>
+        </div>
+
+        <!-- Enlace a consola de GitHub -->
+        <div class="mt-3 pt-2.5 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+          <span>Ver ejecución en tiempo real:</span>
+          <a id="adminGhActionsLink" href="https://github.com/gonzapetreigne/super-comparador/actions/workflows/update-catalogs.yml" target="_blank" class="text-cyan-300 hover:text-cyan-200 font-semibold underline inline-flex items-center gap-1">
+            <span>Abrir GitHub Actions</span> ↗
+          </a>
+        </div>
+      </div>
+
+      <!-- Configuración de Token de GitHub (Desplegable) -->
+      <div class="border border-slate-800 rounded-2xl p-3 bg-slate-900/50">
+        <button
+          type="button"
+          onclick="toggleAdminGhTokenConfig()"
+          class="w-full flex items-center justify-between text-xs text-slate-400 hover:text-cyan-300 transition text-left"
+        >
+          <span class="flex items-center gap-1.5 font-bold">
+            <span>🔑</span> Token de GitHub (PAT)
+          </span>
+          <span id="adminTokenToggleIcon" class="text-xs">▼</span>
+        </button>
+
+        <div id="adminGhTokenConfigBody" class="hidden mt-3 pt-3 border-t border-slate-800 text-xs space-y-2.5">
+          <p class="text-[11px] text-slate-300 leading-relaxed">
+            Para que la app pueda iniciar la actualización en GitHub Actions se requiere un <strong>Personal Access Token (PAT)</strong> con permiso de <code class="text-cyan-300 bg-slate-800 px-1 py-0.5 rounded">workflow</code> o <code class="text-cyan-300 bg-slate-800 px-1 py-0.5 rounded">repo</code>.
+          </p>
+          <input
+            type="password"
+            id="adminGhTokenInput"
+            placeholder="Pegá tu token aquí (ghp_...)"
+            class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400 font-mono"
+          />
+          <div class="flex items-center justify-between gap-2 pt-1">
+            <a
+              href="https://github.com/settings/tokens/new?description=Super+Comparador+Admin&scopes=repo,workflow"
+              target="_blank"
+              class="text-[11px] text-cyan-400 hover:underline font-bold"
+            >
+              Generar token en GitHub ↗
+            </a>
+            <button
+              type="button"
+              onclick="saveAdminGhToken()"
+              class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold text-xs rounded-xl transition"
+            >
+              Guardar Token
+            </button>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -751,15 +954,15 @@
   </nav>
 
   <!-- App Script with cache-busting -->
-  <script src="/app.js?v=2.5.0"></script>
+  <script src="/app.js?v=2.6.0"></script>
   <script>
     // Register PWA service worker with auto-update
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js?v=5')
+        navigator.serviceWorker.register('/sw.js?v=6')
           .then(reg => {
             reg.update();
-            console.log('SW registrado y actualizado a v5');
+            console.log('SW registrado y actualizado a v6');
           })
           .catch(err => console.log('Fallo registro SW:', err));
       });

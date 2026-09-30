@@ -1686,3 +1686,315 @@ function switchTab(tabId) {
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+
+// ==========================================
+// MODO ADMINISTRADOR Y SEGUIMIENTO EN VIVO
+// ==========================================
+
+let secretVersionClickCount = 0;
+let secretVersionClickTimeout = null;
+let workflowPollingInterval = null;
+
+function handleVersionSecretClicks() {
+  secretVersionClickCount++;
+  clearTimeout(secretVersionClickTimeout);
+  secretVersionClickTimeout = setTimeout(() => {
+    secretVersionClickCount = 0;
+  }, 2500);
+
+  if (secretVersionClickCount >= 5) {
+    secretVersionClickCount = 0;
+    openAdminModal();
+  }
+}
+
+function openAdminModal() {
+  const isAuth = sessionStorage.getItem('admin_authenticated') === 'true';
+  if (isAuth) {
+    showAdminDashboardModal();
+  } else {
+    showAdminPinModal();
+  }
+}
+
+function showAdminPinModal() {
+  const modal = document.getElementById('adminPinModal');
+  const input = document.getElementById('adminPinInput');
+  const errEl = document.getElementById('adminPinError');
+  if (errEl) errEl.classList.add('hidden');
+  if (input) {
+    input.value = '';
+    setTimeout(() => input.focus(), 150);
+  }
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeAdminPinModal() {
+  const modal = document.getElementById('adminPinModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function handleAdminPinSubmit(event) {
+  if (event) event.preventDefault();
+  const input = document.getElementById('adminPinInput');
+  const errEl = document.getElementById('adminPinError');
+  const btn = document.getElementById('btnAdminPinSubmit');
+  const pin = (input?.value || '').trim();
+
+  if (!pin) {
+    if (errEl) {
+      errEl.textContent = 'Por favor ingresá el PIN.';
+      errEl.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch('/api/admin/verify-pin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin })
+    });
+    const data = await res.json();
+    if (res.ok && data.valid) {
+      sessionStorage.setItem('admin_authenticated', 'true');
+      sessionStorage.setItem('admin_pin', pin);
+      closeAdminPinModal();
+      showAdminDashboardModal();
+    } else {
+      if (errEl) {
+        errEl.textContent = data.error || 'PIN incorrecto.';
+        errEl.classList.remove('hidden');
+      }
+    }
+  } catch (err) {
+    if (errEl) {
+      errEl.textContent = 'Error de conexión al verificar PIN.';
+      errEl.classList.remove('hidden');
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function showAdminDashboardModal() {
+  const modal = document.getElementById('adminDashboardModal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+
+  // Cargar datos del catálogo
+  const dateEl = document.getElementById('adminCatalogDate');
+  const countsEl = document.getElementById('adminCatalogCounts');
+  const tokenInput = document.getElementById('adminGhTokenInput');
+
+  const savedToken = localStorage.getItem('admin_gh_token') || '';
+  if (tokenInput && savedToken) {
+    tokenInput.value = savedToken;
+  }
+
+  try {
+    const res = await fetch('/api/info');
+    if (res.ok) {
+      const data = await res.json();
+      if (dateEl) dateEl.textContent = data.formattedDate || 'Reciente';
+      if (countsEl && data.totalProducts) {
+        countsEl.textContent = `Actual: ${data.totalProducts.actual?.toLocaleString() || '-'} • Golópolis: ${data.totalProducts.golopolis?.toLocaleString() || '-'} • MELI: ${data.totalProducts.mercadolibre?.toLocaleString() || '-'}`;
+      }
+    }
+  } catch (e) {}
+
+  // Verificar si hay una ejecución en curso
+  checkExistingWorkflowStatus();
+}
+
+function closeAdminDashboardModal() {
+  const modal = document.getElementById('adminDashboardModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function toggleAdminGhTokenConfig() {
+  const body = document.getElementById('adminGhTokenConfigBody');
+  const icon = document.getElementById('adminTokenToggleIcon');
+  if (!body) return;
+  const isHidden = body.classList.contains('hidden');
+  if (isHidden) {
+    body.classList.remove('hidden');
+    if (icon) icon.textContent = '▲';
+  } else {
+    body.classList.add('hidden');
+    if (icon) icon.textContent = '▼';
+  }
+}
+
+function saveAdminGhToken() {
+  const input = document.getElementById('adminGhTokenInput');
+  const token = (input?.value || '').trim();
+  if (token) {
+    localStorage.setItem('admin_gh_token', token);
+    showToast('Token de GitHub guardado en este dispositivo.');
+  } else {
+    localStorage.removeItem('admin_gh_token');
+    showToast('Token eliminado.');
+  }
+}
+
+async function triggerCatalogUpdate() {
+  const btn = document.getElementById('btnTriggerUpdate');
+  const btnText = document.getElementById('btnTriggerUpdateText');
+  const errEl = document.getElementById('adminTriggerError');
+  const pin = sessionStorage.getItem('admin_pin') || '';
+  const token = localStorage.getItem('admin_gh_token') || (document.getElementById('adminGhTokenInput')?.value || '').trim();
+
+  if (errEl) errEl.classList.add('hidden');
+
+  if (!token) {
+    const tokenBody = document.getElementById('adminGhTokenConfigBody');
+    if (tokenBody) tokenBody.classList.remove('hidden');
+    if (errEl) {
+      errEl.innerHTML = 'Falta el Token de GitHub (PAT). Ingresalo abajo para autorizar el inicio en la nube (<a href="https://github.com/settings/tokens/new?description=Super+Comparador+Admin&scopes=repo,workflow" target="_blank" class="underline font-bold text-cyan-300">Crear token aquí</a>).';
+      errEl.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (btn) btn.disabled = true;
+  if (btnText) btnText.textContent = 'Iniciando en GitHub Actions...';
+
+  try {
+    const res = await fetch('/api/admin/trigger-update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin, token })
+    });
+    const data = await res.json();
+
+    if (res.ok && data.success) {
+      showToast('¡Actualización iniciada en GitHub Actions!');
+      showProgressSection();
+      startWorkflowPolling();
+    } else {
+      if (errEl) {
+        errEl.textContent = data.error || 'No se pudo iniciar la actualización.';
+        errEl.classList.remove('hidden');
+      }
+      if (btn) btn.disabled = false;
+      if (btnText) btnText.textContent = 'Lanzar Actualización de Precios Ahora';
+    }
+  } catch (err) {
+    if (errEl) {
+      errEl.textContent = `Error de conexión: ${err.message}`;
+      errEl.classList.remove('hidden');
+    }
+    if (btn) btn.disabled = false;
+    if (btnText) btnText.textContent = 'Lanzar Actualización de Precios Ahora';
+  }
+}
+
+function showProgressSection() {
+  const section = document.getElementById('adminProgressSection');
+  const successAlert = document.getElementById('adminSuccessAlert');
+  if (section) section.classList.remove('hidden');
+  if (successAlert) successAlert.classList.add('hidden');
+  updateProgressUI({
+    percent: 5,
+    stepDescription: 'Conectando con GitHub Actions y solicitando inicio...',
+    elapsedSec: 0,
+    status: 'in_progress'
+  });
+}
+
+function updateProgressUI(run) {
+  const bar = document.getElementById('adminProgressBar');
+  const percentEl = document.getElementById('adminProgressPercent');
+  const stepEl = document.getElementById('adminProgressStep');
+  const timerEl = document.getElementById('adminProgressTimer');
+  const badgeEl = document.getElementById('adminProgressBadge');
+  const linkEl = document.getElementById('adminGhActionsLink');
+
+  const percent = Math.min(100, Math.max(0, run.percent || 0));
+  if (bar) bar.style.width = `${percent}%`;
+  if (percentEl) percentEl.textContent = `${percent}%`;
+  if (stepEl && run.stepDescription) stepEl.textContent = run.stepDescription;
+
+  if (timerEl && typeof run.elapsedSec === 'number') {
+    const m = Math.floor(run.elapsedSec / 60);
+    const s = run.elapsedSec % 60;
+    const timeFormatted = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    timerEl.textContent = `⏱ ${timeFormatted}`;
+  }
+
+  if (linkEl && run.htmlUrl) {
+    linkEl.href = run.htmlUrl;
+  }
+
+  if (badgeEl) {
+    if (run.status === 'in_progress') {
+      badgeEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span><span>En ejecución en la nube...</span>`;
+      badgeEl.className = 'inline-flex items-center gap-1.5 text-xs font-bold text-amber-300';
+    } else if (run.status === 'completed' && run.conclusion === 'success') {
+      badgeEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span><span>Completado</span>`;
+      badgeEl.className = 'inline-flex items-center gap-1.5 text-xs font-bold text-emerald-300';
+    } else if (run.status === 'completed') {
+      badgeEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-400"></span><span>Finalizado (${run.conclusion})</span>`;
+      badgeEl.className = 'inline-flex items-center gap-1.5 text-xs font-bold text-rose-300';
+    }
+  }
+}
+
+async function checkExistingWorkflowStatus() {
+  const token = localStorage.getItem('admin_gh_token') || '';
+  try {
+    const url = `/api/admin/workflow-status${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+    const res = await fetch(url);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.hasRun && data.run) {
+      if (data.run.status === 'in_progress' || data.run.status === 'queued') {
+        showProgressSection();
+        updateProgressUI(data.run);
+        startWorkflowPolling();
+      }
+    }
+  } catch (e) {}
+}
+
+function startWorkflowPolling() {
+  if (workflowPollingInterval) clearInterval(workflowPollingInterval);
+
+  workflowPollingInterval = setInterval(async () => {
+    const token = localStorage.getItem('admin_gh_token') || '';
+    const btn = document.getElementById('btnTriggerUpdate');
+    const btnText = document.getElementById('btnTriggerUpdateText');
+    const successAlert = document.getElementById('adminSuccessAlert');
+
+    try {
+      const url = `/api/admin/workflow-status${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+      const res = await fetch(url);
+      if (!res.ok) return;
+      const data = await res.json();
+
+      if (data.hasRun && data.run) {
+        updateProgressUI(data.run);
+
+        if (data.run.status === 'completed') {
+          clearInterval(workflowPollingInterval);
+          workflowPollingInterval = null;
+
+          if (btn) btn.disabled = false;
+          if (btnText) btnText.textContent = 'Lanzar Actualización de Precios Ahora';
+
+          if (data.run.conclusion === 'success') {
+            if (successAlert) successAlert.classList.remove('hidden');
+            showToast('🎉 ¡Actualización de catálogos finalizada con éxito!');
+          } else {
+            showToast(`Workflow finalizado: ${data.run.conclusion}`);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Error en polling de workflow:', e);
+    }
+  }, 3500);
+}
+

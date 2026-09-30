@@ -250,6 +250,173 @@ app.get('/api/test-golo', async (req, res) => {
   }
 });
 
+// ==========================================
+// MODO ADMINISTRADOR: DISPARO Y SEGUIMIENTO EN VIVO
+// ==========================================
+const REPO_OWNER = 'gonzapetreigne';
+const REPO_NAME = 'super-comparador';
+const WORKFLOW_NAME = 'update-catalogs.yml';
+const DEFAULT_ADMIN_PIN = process.env.ADMIN_PIN || '2026';
+
+// Verificar PIN de administrador
+app.post('/api/admin/verify-pin', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  const { pin } = req.body || {};
+  if (pin && String(pin).trim() === DEFAULT_ADMIN_PIN) {
+    return res.json({ valid: true });
+  }
+  return res.status(401).json({ valid: false, error: 'PIN de Administrador incorrecto.' });
+});
+
+// Lanzar actualización de catálogos
+app.post('/api/admin/trigger-update', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  const { pin, token } = req.body || {};
+
+  if (!pin || String(pin).trim() !== DEFAULT_ADMIN_PIN) {
+    return res.status(401).json({ error: 'PIN de Administrador incorrecto.' });
+  }
+
+  const ghToken = (token || process.env.GITHUB_PAT || process.env.GITHUB_TOKEN || '').trim();
+
+  if (!ghToken) {
+    return res.status(400).json({
+      error: 'Se necesita un Token de GitHub (PAT) para autorizar el inicio de la actualización en la nube. Podés ingresarlo en el panel.'
+    });
+  }
+
+  try {
+    const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/workflows/${WORKFLOW_NAME}/dispatches`;
+    const ghRes = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/vnd.github.v3+json',
+        'Authorization': `Bearer ${ghToken}`,
+        'User-Agent': 'Super-Comparador-App',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ ref: 'main' })
+    });
+
+    if (ghRes.status === 204) {
+      return res.json({
+        success: true,
+        message: '¡Actualización iniciada exitosamente en GitHub Actions! El servidor en la nube ya está procesando los catálogos.'
+      });
+    }
+
+    const errData = await ghRes.json().catch(() => ({}));
+    return res.status(ghRes.status).json({
+      error: errData.message || `GitHub respondió con error (${ghRes.status}). Verificá que el token tenga permiso 'repo' o 'workflow'.`
+    });
+  } catch (err) {
+    return res.status(500).json({ error: `Error conectando con GitHub: ${err.message}` });
+  }
+});
+
+// Consultar progreso y estado en vivo del workflow
+app.get('/api/admin/workflow-status', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  const token = (req.query.token || process.env.GITHUB_PAT || process.env.GITHUB_TOKEN || '').trim();
+
+  const headers = {
+    'User-Agent': 'Super-Comparador-App',
+    'Accept': 'application/vnd.github.v3+json'
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  try {
+    const runsUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/workflows/${WORKFLOW_NAME}/runs?per_page=1`;
+    const runsRes = await fetch(runsUrl, { headers });
+
+    if (!runsRes.ok) {
+      const errData = await runsRes.json().catch(() => ({}));
+      return res.status(runsRes.status).json({
+        error: errData.message || 'Error consultando GitHub Actions.'
+      });
+    }
+
+    const data = await runsRes.json();
+    const latestRun = data.workflow_runs?.[0] || null;
+
+    if (!latestRun) {
+      return res.json({ hasRun: false, run: null });
+    }
+
+    const now = Date.now();
+    const startedAt = new Date(latestRun.run_started_at || latestRun.created_at).getTime();
+    const elapsedSec = Math.max(0, Math.floor((now - startedAt) / 1000));
+
+    // Consultar detalles de los pasos si está en curso
+    let steps = [];
+    if (latestRun.id && (latestRun.status === 'in_progress' || latestRun.status === 'queued')) {
+      try {
+        const jobsRes = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/runs/${latestRun.id}/jobs`, { headers });
+        if (jobsRes.ok) {
+          const jobsData = await jobsRes.json();
+          const mainJob = jobsData.jobs?.[0];
+          steps = mainJob?.steps || [];
+        }
+      } catch (e) {}
+    }
+
+    // Calcular porcentaje y etapa amigable para el usuario
+    let percent = 0;
+    let stepDescription = 'Preparando ejecución...';
+
+    if (latestRun.status === 'queued') {
+      percent = 8;
+      stepDescription = 'En cola en los servidores de GitHub...';
+    } else if (latestRun.status === 'in_progress') {
+      const updateStep = steps.find(s => s.name?.includes('Ejecutar actualización'));
+      if (!updateStep || updateStep.status === 'queued') {
+        percent = 18;
+        stepDescription = 'Iniciando máquina virtual y configurando dependencias...';
+      } else if (updateStep.status === 'in_progress') {
+        if (elapsedSec < 45) {
+          percent = Math.min(42, 22 + Math.floor(elapsedSec * 0.45));
+          stepDescription = 'Descargando catálogos de Supermercado Actual y Golópolis...';
+        } else if (elapsedSec < 120) {
+          percent = Math.min(76, 42 + Math.floor((elapsedSec - 45) * 0.45));
+          stepDescription = 'Auditando y validando 100% de precios contra las webs oficiales...';
+        } else {
+          percent = Math.min(92, 76 + Math.floor((elapsedSec - 120) * 0.2));
+          stepDescription = 'Guardando cambios y sincronizando despliegue en Vercel...';
+        }
+      } else if (updateStep.status === 'completed') {
+        percent = 95;
+        stepDescription = 'Publicando nueva versión en producción de Vercel...';
+      }
+    } else if (latestRun.status === 'completed') {
+      percent = 100;
+      if (latestRun.conclusion === 'success') {
+        stepDescription = '¡Actualización y validación finalizadas con éxito!';
+      } else {
+        stepDescription = `Finalizado con estado: ${latestRun.conclusion || 'desconocido'}.`;
+      }
+    }
+
+    return res.json({
+      hasRun: true,
+      run: {
+        id: latestRun.id,
+        status: latestRun.status,
+        conclusion: latestRun.conclusion,
+        htmlUrl: latestRun.html_url,
+        startedAt: latestRun.run_started_at || latestRun.created_at,
+        updatedAt: latestRun.updated_at,
+        elapsedSec,
+        percent,
+        stepDescription
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ error: `Error: ${err.message}` });
+  }
+});
+
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
   res.json({
