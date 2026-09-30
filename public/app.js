@@ -1944,11 +1944,38 @@ function updateProgressUI(run) {
 
 async function checkExistingWorkflowStatus() {
   const token = localStorage.getItem('admin_gh_token') || '';
+  const btn = document.getElementById('btnTriggerUpdate');
+  const btnText = document.getElementById('btnTriggerUpdateText');
+  const limitNotice = document.getElementById('adminDailyLimitNotice');
+  const limitText = document.getElementById('adminDailyLimitNoticeText');
+
   try {
     const url = `/api/admin/workflow-status${token ? `?token=${encodeURIComponent(token)}` : ''}`;
     const res = await fetch(url);
     if (!res.ok) return;
     const data = await res.json();
+
+    if (data.canRunToday === false) {
+      if (btn && data.run?.status !== 'in_progress' && data.run?.status !== 'queued') {
+        btn.disabled = true;
+        btn.classList.add('opacity-60', 'cursor-not-allowed');
+        if (btnText) {
+          btnText.textContent = `🔒 Actualizado hoy (Disponible en ${data.cooldownRemainingHours || '20'}h)`;
+        }
+      }
+      if (limitNotice && limitText && data.cooldownRemainingHours) {
+        limitText.textContent = `La última actualización se realizó con éxito hace ${data.lastSuccessTimeAgo || 'poco'}. Para no sobrecargar los servidores y catálogos de los supermercados, se permite 1 actualización por día. Podrás volver a actualizar en ${data.cooldownRemainingHours} horas.`;
+        limitNotice.classList.remove('hidden');
+      }
+    } else {
+      if (btn && data.run?.status !== 'in_progress' && data.run?.status !== 'queued') {
+        btn.disabled = false;
+        btn.classList.remove('opacity-60', 'cursor-not-allowed');
+        if (btnText) btnText.textContent = 'Lanzar Actualización de Precios Ahora';
+      }
+      if (limitNotice) limitNotice.classList.add('hidden');
+    }
+
     if (data.hasRun && data.run) {
       if (data.run.status === 'in_progress' || data.run.status === 'queued') {
         showProgressSection();
@@ -1981,13 +2008,30 @@ function startWorkflowPolling() {
           clearInterval(workflowPollingInterval);
           workflowPollingInterval = null;
 
-          if (btn) btn.disabled = false;
-          if (btnText) btnText.textContent = 'Lanzar Actualización de Precios Ahora';
-
           if (data.run.conclusion === 'success') {
             if (successAlert) successAlert.classList.remove('hidden');
             showToast('🎉 ¡Actualización de catálogos finalizada con éxito!');
+
+            // Activar bloqueo de 1 por día en la UI inmediatamente
+            const limitNotice = document.getElementById('adminDailyLimitNotice');
+            const limitText = document.getElementById('adminDailyLimitNoticeText');
+            if (btn) {
+              btn.disabled = true;
+              btn.classList.add('opacity-60', 'cursor-not-allowed');
+            }
+            if (btnText) {
+              btnText.textContent = '🔒 Actualizado hoy (Límite diario activo)';
+            }
+            if (limitNotice && limitText) {
+              limitText.textContent = 'Actualización completada con éxito. Para proteger los catálogos y no sobrecargar las tiendas, la próxima actualización manual estará disponible en 20 horas.';
+              limitNotice.classList.remove('hidden');
+            }
           } else {
+            if (btn) {
+              btn.disabled = false;
+              btn.classList.remove('opacity-60', 'cursor-not-allowed');
+            }
+            if (btnText) btnText.textContent = 'Lanzar Actualización de Precios Ahora';
             showToast(`Workflow finalizado: ${data.run.conclusion}`);
           }
         }
@@ -1997,4 +2041,5 @@ function startWorkflowPolling() {
     }
   }, 3500);
 }
+
 

@@ -268,7 +268,7 @@ app.post('/api/admin/verify-pin', (req, res) => {
   return res.status(401).json({ valid: false, error: 'PIN de Administrador incorrecto.' });
 });
 
-// Lanzar actualización de catálogos
+// Lanzar actualización de catálogos con límite de 1 por día
 app.post('/api/admin/trigger-update', async (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   const { pin, token } = req.body || {};
@@ -286,13 +286,60 @@ app.post('/api/admin/trigger-update', async (req, res) => {
   }
 
   try {
+    const headers = {
+      'Accept': 'application/vnd.github.v3+json',
+      'Authorization': `Bearer ${ghToken}`,
+      'User-Agent': 'Super-Comparador-App'
+    };
+
+    // 1. Control de Seguridad: Límite de 1 ejecución diaria
+    const checkUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/workflows/${WORKFLOW_NAME}/runs?per_page=1`;
+    const checkRes = await fetch(checkUrl, {
+      headers: {
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Super-Comparador-App'
+      }
+    });
+
+    if (checkRes.ok) {
+      const runsData = await checkRes.json();
+      const latest = runsData.workflow_runs?.[0];
+
+      if (latest) {
+        // Bloquear si ya hay una ejecución en curso
+        if (latest.status === 'in_progress' || latest.status === 'queued') {
+          return res.status(409).json({
+            error: 'Ya hay una actualización en curso en GitHub Actions. Por favor esperá a que finalice.'
+          });
+        }
+
+        // Bloquear si se ejecutó con éxito hace menos de 20 horas
+        if (latest.conclusion === 'success') {
+          const runTime = new Date(latest.created_at).getTime();
+          const elapsedMs = Date.now() - runTime;
+          const elapsedHours = elapsedMs / (1000 * 60 * 60);
+          const COOLDOWN_HOURS = 20; // 20 horas asegura máximo 1 ejecución por día calendario
+
+          if (elapsedHours < COOLDOWN_HOURS) {
+            const hoursLeft = Math.ceil(COOLDOWN_HOURS - elapsedHours);
+            const hoursAgo = Math.floor(elapsedHours);
+            const minutesAgo = Math.floor((elapsedMs % (1000 * 60 * 60)) / (1000 * 60));
+            const timeAgoStr = hoursAgo > 0 ? `${hoursAgo}h ${minutesAgo}m` : `${minutesAgo} minutos`;
+
+            return res.status(429).json({
+              error: `Límite diario de seguridad activo: Ya se completó una actualización exitosa hace ${timeAgoStr}. Para no sobrecargar los servidores y catálogos de los supermercados, se permite como máximo 1 actualización por día. Podrás volver a actualizar en aproximadamente ${hoursLeft}h.`
+            });
+          }
+        }
+      }
+    }
+
+    // 2. Disparar el workflow en GitHub Actions
     const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/workflows/${WORKFLOW_NAME}/dispatches`;
     const ghRes = await fetch(url, {
       method: 'POST',
       headers: {
-        'Accept': 'application/vnd.github.v3+json',
-        'Authorization': `Bearer ${ghToken}`,
-        'User-Agent': 'Super-Comparador-App',
+        ...headers,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ ref: 'main' })
@@ -398,8 +445,35 @@ app.get('/api/admin/workflow-status', async (req, res) => {
       }
     }
 
+    // Calcular disponibilidad diaria (Límite de 1 por día)
+    let canRunToday = true;
+    let cooldownRemainingHours = 0;
+    let lastSuccessTimeAgo = null;
+
+    if (latestRun.conclusion === 'success') {
+      const runTime = new Date(latestRun.created_at).getTime();
+      const elapsedMs = now - runTime;
+      const elapsedHours = elapsedMs / (1000 * 60 * 60);
+      const COOLDOWN_HOURS = 20;
+
+      if (elapsedHours < COOLDOWN_HOURS) {
+        canRunToday = false;
+        cooldownRemainingHours = Math.ceil(COOLDOWN_HOURS - elapsedHours);
+        const hoursAgo = Math.floor(elapsedHours);
+        const minutesAgo = Math.floor((elapsedMs % (1000 * 60 * 60)) / (1000 * 60));
+        lastSuccessTimeAgo = hoursAgo > 0 ? `${hoursAgo}h ${minutesAgo}m` : `${minutesAgo} minutos`;
+      }
+    }
+
+    if (latestRun.status === 'in_progress' || latestRun.status === 'queued') {
+      canRunToday = false;
+    }
+
     return res.json({
       hasRun: true,
+      canRunToday,
+      cooldownRemainingHours,
+      lastSuccessTimeAgo,
       run: {
         id: latestRun.id,
         status: latestRun.status,

@@ -815,6 +815,13 @@
           <span id="btnTriggerUpdateText">Lanzar Actualización de Precios Ahora</span>
         </button>
         <div id="adminTriggerError" class="hidden mt-2 p-2.5 rounded-xl bg-rose-500/20 border border-rose-500/40 text-xs text-rose-200 leading-snug"></div>
+        <div id="adminDailyLimitNotice" class="hidden mt-2.5 p-3 rounded-2xl bg-cyan-950/60 border border-cyan-500/30 text-xs text-cyan-200 leading-snug flex items-start gap-2.5 shadow-sm">
+          <span class="text-base shrink-0">🛡️</span>
+          <div>
+            <strong class="font-bold text-cyan-300 block mb-0.5">Límite Diario de Seguridad Activo:</strong>
+            <span id="adminDailyLimitNoticeText" class="text-slate-300 leading-relaxed text-[11px]"></span>
+          </div>
+        </div>
       </div>
 
       <!-- SECCIÓN: INDICADOR DE PROGRESO EN VIVO -->
@@ -954,15 +961,15 @@
   </nav>
 
   <!-- App Script with cache-busting -->
-  <script src="/app.js?v=2.6.0"></script>
+  <script src="/app.js?v=2.7.0"></script>
   <script>
     // Register PWA service worker with auto-update
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js?v=6')
+        navigator.serviceWorker.register('/sw.js?v=7')
           .then(reg => {
             reg.update();
-            console.log('SW registrado y actualizado a v6');
+            console.log('SW registrado y actualizado a v7');
           })
           .catch(err => console.log('Fallo registro SW:', err));
       });
