@@ -576,6 +576,17 @@ export function matchProducts(golopolisProducts = [], actualProducts = [], diaPr
   // Filter out any card that has zero available stores
   cards = cards.filter(card => card.storeCount > 0);
 
+  // Discard cards that ONLY exist in Mercado Libre
+  // (Prioritize local supermarkets: Golópolis, Actual, Día%. Mercado Libre only appears as an additional comparison price when at least 1 local supermarket has the product)
+  cards = cards.filter(card => {
+    const hasLocalStore = Boolean(
+      (card.prices.golopolis && card.prices.golopolis.available !== false && card.prices.golopolis.price > 0) ||
+      (card.prices.actual && card.prices.actual.available !== false && card.prices.actual.price > 0) ||
+      (card.prices.dia && card.prices.dia.available !== false && card.prices.dia.price > 0)
+    );
+    return hasLocalStore;
+  });
+
   // Calculate cheaper alternatives for cards that are missing stores or have higher prices
   for (const card of cards) {
     if (card.minPrice > 0) {
