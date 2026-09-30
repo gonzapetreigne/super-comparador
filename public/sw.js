@@ -1,4 +1,4 @@
-const CACHE_NAME = 'super-comparador-v9';
+const CACHE_NAME = 'super-comparador-v10';
 const ASSETS_TO_CACHE = [
   '/',
   '/manifest.json',
