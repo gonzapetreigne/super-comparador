@@ -131,14 +131,44 @@ function getEffectivePrice(storeId, itemPrice) {
   if (!itemPrice || itemPrice <= 0) return 0;
   let finalPrice = itemPrice;
 
-  // If Cuenta DNI is active: 20% discount on supermarkets
+  // 1. Club Día% (15% discount for Día% members)
+  if (state.promos.clubDia && storeId === 'dia') {
+    finalPrice = finalPrice * 0.85;
+  }
+
+  // 2. Cuenta DNI (20% cashback in participating local supermarkets: Golópolis, Actual, Día%)
   if (state.promos.cuentaDni) {
     if (storeId === 'golopolis' || storeId === 'actual' || storeId === 'dia') {
-      finalPrice = finalPrice * 0.8;
+      finalPrice = finalPrice * 0.80;
     }
   }
 
   return Math.round(finalPrice * 100) / 100;
+}
+
+// Share the App itself via WhatsApp
+function shareAppWhatsApp() {
+  const shareText = `🛒 *Súper Comparador de Precios - Las Flores*\n\n¡Encontré esta app para comparar precios en tiempo real entre Golópolis, Actual, Día% y Mercado Libre!\n\n👉 https://app-supermercados.vercel.app`;
+  const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+  window.open(waUrl, '_blank');
+}
+window.shareAppWhatsApp = shareAppWhatsApp;
+
+// Toggle visibility of Mercado Libre in Stats Bar based on promo switch
+function updateStatsBarVisibility() {
+  const statsGrid = document.getElementById('searchStatsGrid');
+  const meliBox = document.getElementById('statBoxMeli');
+  if (!statsGrid || !meliBox) return;
+
+  if (state.promos.meliFull) {
+    meliBox.classList.remove('hidden');
+    statsGrid.classList.remove('grid-cols-3');
+    statsGrid.classList.add('grid-cols-4');
+  } else {
+    meliBox.classList.add('hidden');
+    statsGrid.classList.remove('grid-cols-4');
+    statsGrid.classList.add('grid-cols-3');
+  }
 }
 
 // Initialize on DOM ready
@@ -177,13 +207,20 @@ function getBestStoreForCard(itemOrCard) {
   const options = [
     { id: 'dia', price: itemOrCard.prices.dia?.price ? getEffectivePrice('dia', itemOrCard.prices.dia.price) : null },
     { id: 'actual', price: itemOrCard.prices.actual?.price ? getEffectivePrice('actual', itemOrCard.prices.actual.price) : null },
-    { id: 'golopolis', price: itemOrCard.prices.golopolis?.price ? getEffectivePrice('golopolis', itemOrCard.prices.golopolis.price) : null },
-    { id: 'mercadolibre', price: itemOrCard.prices.mercadolibre?.price ? getEffectivePrice('mercadolibre', itemOrCard.prices.mercadolibre.price) : null }
-  ].filter(o => o.price !== null && o.price > 0);
+    { id: 'golopolis', price: itemOrCard.prices.golopolis?.price ? getEffectivePrice('golopolis', itemOrCard.prices.golopolis.price) : null }
+  ];
 
-  if (options.length === 0) return 'dia';
-  options.sort((a, b) => a.price - b.price);
-  return options[0].id;
+  if (state.promos.meliFull && itemOrCard.prices.mercadolibre?.price) {
+    options.push({
+      id: 'mercadolibre',
+      price: getEffectivePrice('mercadolibre', itemOrCard.prices.mercadolibre.price)
+    });
+  }
+
+  const valid = options.filter(o => o.price !== null && o.price > 0);
+  if (valid.length === 0) return 'dia';
+  valid.sort((a, b) => a.price - b.price);
+  return valid[0].id;
 }
 
 // Load cart and saved lists from localStorage
@@ -211,15 +248,20 @@ function loadSavedData() {
         const parsed = JSON.parse(storedPromos);
         state.promos.cuentaDni = !!parsed.cuentaDni;
         state.promos.clubDia = !!parsed.clubDia;
+        state.promos.meliFull = typeof parsed.meliFull === 'boolean' ? parsed.meliFull : true;
       } catch (e) {}
-      const dniEl = document.getElementById('toggleDNI');
-      if (dniEl) dniEl.checked = state.promos.cuentaDni;
-      const diaEl = document.getElementById('toggleClubDia');
-      if (diaEl) diaEl.checked = state.promos.clubDia;
+    } else {
+      state.promos.cuentaDni = false;
+      state.promos.clubDia = false;
+      state.promos.meliFull = true;
     }
-    state.promos.meliFull = true;
+    const dniEl = document.getElementById('toggleDNI');
+    if (dniEl) dniEl.checked = state.promos.cuentaDni;
+    const diaEl = document.getElementById('toggleClubDia');
+    if (diaEl) diaEl.checked = state.promos.clubDia;
     const meliToggle = document.getElementById('toggleMeliFull');
-    if (meliToggle) meliToggle.checked = true;
+    if (meliToggle) meliToggle.checked = state.promos.meliFull;
+    updateStatsBarVisibility();
   } catch (e) {
     console.error('Error cargando datos locales:', e);
   }
@@ -240,6 +282,7 @@ function saveLists() {
 
 function savePromos() {
   localStorage.setItem('super_promos_v1', JSON.stringify(state.promos));
+  updateStatsBarVisibility();
   if (state.currentResults.length > 0) {
     renderCards(state.currentResults);
   }
@@ -356,8 +399,17 @@ function setupEventListeners() {
     alert(`¡Lista "${name}" guardada con éxito!`);
   });
 
-  // WhatsApp Share
-  document.getElementById('shareWhatsAppBtn').addEventListener('click', shareListWhatsApp);
+  // WhatsApp Share List
+  const shareCartBtn = document.getElementById('shareWhatsAppBtn');
+  if (shareCartBtn) {
+    shareCartBtn.addEventListener('click', shareListWhatsApp);
+  }
+
+  // WhatsApp Share App
+  const shareAppBtn = document.getElementById('shareAppWhatsAppBtn');
+  if (shareAppBtn) {
+    shareAppBtn.addEventListener('click', shareAppWhatsApp);
+  }
 }
 
 // Perform Live Search
@@ -400,6 +452,7 @@ async function performSearch(query) {
 
     // Update Stats Bar
     statsBar.classList.remove('hidden');
+    updateStatsBarVisibility();
     document.getElementById('totalCardsCount').textContent = data.totalCards;
     document.getElementById('queryLabel').textContent = query;
     document.getElementById('elapsedTimeBadge').textContent = `${(data.elapsedMs / 1000).toFixed(1)}s`;
@@ -567,8 +620,11 @@ function renderCards(cards) {
           unavailText: 'text-red-900/70'
         },
         data: card.prices.dia
-      },
-      {
+      }
+    ];
+
+    if (state.promos.meliFull) {
+      stores.push({
         id: 'mercadolibre',
         name: 'Mercado Libre',
         branch: 'Full ⚡',
@@ -585,8 +641,8 @@ function renderCards(cards) {
           unavailText: 'text-amber-900/70'
         },
         data: card.prices.mercadolibre
-      }
-    ];
+      });
+    }
 
     // Recalculate cheapest with current promo rules
     const availableStores = stores
@@ -729,8 +785,11 @@ function renderCards(cards) {
             </div>
             ${p.originalPrice && p.originalPrice > p.price ? `
               <div class="text-[10px] text-slate-400 line-through">${formatMoney(p.originalPrice)}</div>
-            ` : (state.promos.cuentaDni && store.id !== 'mercadolibre' ? `
-              <div class="text-[10px] text-slate-400 line-through">${formatMoney(p.price)}</div>
+            ` : (effPrice < p.price ? `
+              <div class="flex items-center gap-1">
+                <span class="text-[10px] text-slate-400 line-through">${formatMoney(p.price)}</span>
+                <span class="text-[9px] font-black text-emerald-600 bg-emerald-50 px-1 rounded">-${Math.round((1 - effPrice / p.price) * 100)}%</span>
+              </div>
             ` : '')}
           </div>
 
@@ -763,6 +822,8 @@ function renderCards(cards) {
       `;
     }
 
+    const gridColsClass = state.promos.meliFull ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-1 sm:grid-cols-3';
+
     cardEl.innerHTML = `
       <div class="flex gap-3">
         <!-- Thumbnail -->
@@ -789,8 +850,8 @@ function renderCards(cards) {
         </div>
       </div>
 
-      <!-- Grid de las 4 tiendas -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+      <!-- Grid de tiendas -->
+      <div class="grid ${gridColsClass} gap-2 mt-3">
         ${storePillsHtml}
       </div>
 
@@ -805,15 +866,17 @@ function renderCards(cards) {
 
         <div class="flex items-center gap-2">
           <!-- Botón directo para abrir en la App de Mercado Libre / Ver más vendedores -->
-          <a href="${card.prices.mercadolibre?.url || getMeliSearchUrl(card.title, card.brand)}"
-             target="_blank"
-             rel="noopener noreferrer"
-             class="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 hover:border-amber-400 font-extrabold text-[11px] px-2.5 py-1.5 rounded-xl shadow-2xs transition active:scale-95 flex items-center gap-1.5"
-             title="Abrir en la App de Mercado Libre para ver todos los vendedores y opciones de envío">
-            <img src="/logos/mercadolibre.svg" alt="MELI" class="h-3.5 w-3.5 object-contain" />
-            <span>Ver en MELI</span>
-            <svg class="w-3 h-3 text-amber-800 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-          </a>
+          ${state.promos.meliFull ? `
+            <a href="${card.prices.mercadolibre?.url || getMeliSearchUrl(card.title, card.brand)}"
+               target="_blank"
+               rel="noopener noreferrer"
+               class="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 hover:border-amber-400 font-extrabold text-[11px] px-2.5 py-1.5 rounded-xl shadow-2xs transition active:scale-95 flex items-center gap-1.5"
+               title="Abrir en la App de Mercado Libre para ver todos los vendedores y opciones de envío">
+              <img src="/logos/mercadolibre.svg" alt="MELI" class="h-3.5 w-3.5 object-contain" />
+              <span>Ver en MELI</span>
+              <svg class="w-3 h-3 text-amber-800 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            </a>
+          ` : ''}
 
           ${cartQty > 0 ? `
             <div class="flex items-center gap-1.5 flex-wrap">

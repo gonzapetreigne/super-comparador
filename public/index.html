@@ -95,11 +95,21 @@
           </div>
         </button>
         
-        <!-- Firma Personal Superior -->
-        <div class="shrink-0 select-none pl-2 text-right">
-          <span class="font-signature text-sm sm:text-lg text-cyan-200/90 tracking-wide font-normal block leading-tight drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)] whitespace-nowrap">
-            by Gonza Petreigne
-          </span>
+        <div class="flex items-center gap-2 shrink-0">
+          <!-- Botón Compartir App por WhatsApp -->
+          <button id="shareAppWhatsAppBtn" type="button" class="flex items-center gap-1.5 bg-[#25D366] hover:bg-[#20ba59] active:scale-95 text-slate-950 font-black px-2.5 py-1.5 rounded-xl text-xs shadow-md transition shrink-0 cursor-pointer" title="Compartir app por WhatsApp">
+            <svg class="w-3.5 h-3.5 fill-current shrink-0" viewBox="0 0 24 24">
+              <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.599 2.66-.697c.974.53 1.764.811 2.8.811 3.181 0 5.768-2.587 5.768-5.766 0-3.18-2.587-5.766-5.768-5.766zm9.969 5.766c0 5.48-4.455 9.935-9.969 9.935-1.745 0-3.385-.45-4.821-1.238l-5.21 1.365 1.393-5.086c-.911-1.503-1.431-3.266-1.431-5.146 0-5.48 4.455-9.935 9.969-9.935 5.514 0 9.969 4.455 9.969 9.935z"/>
+            </svg>
+            <span class="text-[11px] font-bold">Compartir</span>
+          </button>
+
+          <!-- Firma Personal Superior -->
+          <div class="shrink-0 select-none pl-1 text-right hidden xs:block">
+            <span class="font-signature text-sm sm:text-base text-cyan-200/90 tracking-wide font-normal block leading-tight drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)] whitespace-nowrap">
+              by Gonza Petreigne
+            </span>
+          </div>
         </div>
       </div>
 
@@ -180,20 +190,20 @@
       </label>
 
       <!-- Club Día Switch -->
-      <label class="flex items-center gap-2 cursor-pointer bg-slate-800/80 hover:bg-slate-700/80 px-2.5 py-1 rounded-xl border border-red-500/30 shrink-0 transition">
+      <label class="flex items-center gap-2 cursor-pointer bg-slate-800/80 hover:bg-slate-700/80 px-2.5 py-1 rounded-xl border border-red-500/30 shrink-0 transition" title="Aplica 15% de descuento en Día% para socios">
         <input type="checkbox" id="toggleClubDia" class="w-4 h-4 rounded text-red-500 focus:ring-red-400 cursor-pointer accent-red-500">
         <div class="flex flex-col">
           <span class="font-bold text-slate-100 leading-none text-xs">Club Día%</span>
-          <span class="text-[10px] text-red-400 font-semibold">Ofertas exclusivas</span>
+          <span class="text-[10px] text-red-400 font-semibold">-15% socios</span>
         </div>
       </label>
 
       <!-- Meli Full Envío Gratis Switch -->
-      <label class="flex items-center gap-2 cursor-pointer bg-slate-800/80 hover:bg-slate-700/80 px-2.5 py-1 rounded-xl border border-amber-500/30 shrink-0 transition">
+      <label class="flex items-center gap-2 cursor-pointer bg-slate-800/80 hover:bg-slate-700/80 px-2.5 py-1 rounded-xl border border-amber-500/30 shrink-0 transition" title="Activa o desactiva Mercado Libre de la comparativa">
         <input type="checkbox" id="toggleMeliFull" checked class="w-4 h-4 rounded text-amber-500 focus:ring-amber-400 cursor-pointer accent-amber-500">
         <div class="flex flex-col">
           <span class="font-bold text-slate-100 leading-none text-xs">Meli Full</span>
-          <span class="text-[10px] text-amber-400 font-semibold">Despacho ⚡</span>
+          <span class="text-[10px] text-amber-400 font-semibold">Online / Envíos</span>
         </div>
       </label>
     </div>
@@ -248,7 +258,7 @@
         </div>
         
         <!-- Indicadores por tienda -->
-        <div class="grid grid-cols-4 gap-2 text-center text-xs">
+        <div id="searchStatsGrid" class="grid grid-cols-4 gap-2 text-center text-xs">
           <div class="bg-emerald-950/40 border border-lime-500/30 rounded-xl p-1.5 flex flex-col items-center justify-between">
             <div class="flex items-center justify-center gap-1 w-full">
               <img src="/logos/golopolis.svg" alt="Golópolis" class="h-3 max-w-[28px] object-contain shrink-0" onerror="this.style.display='none'">
@@ -273,7 +283,7 @@
             <div class="text-[10px] text-red-300/80 font-medium">Online</div>
             <div id="countDia" class="text-xs font-black text-white mt-0.5">0</div>
           </div>
-          <div class="bg-amber-950/40 border border-amber-500/30 rounded-xl p-1.5 flex flex-col items-center justify-between">
+          <div id="statBoxMeli" class="bg-amber-950/40 border border-amber-500/30 rounded-xl p-1.5 flex flex-col items-center justify-between">
             <div class="flex items-center justify-center gap-1 w-full">
               <img src="/logos/mercadolibre.svg" alt="Meli" class="h-3.5 w-3.5 object-contain shrink-0" onerror="this.style.display='none'">
               <span class="font-black text-amber-400 text-[11px] truncate">M. Libre</span>
@@ -564,8 +574,45 @@
         </div>
       </div>
 
+      <!-- Explicación de Promos y Beneficios -->
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm text-slate-800">
+        <h3 class="text-sm font-black text-slate-900 mb-2 flex items-center gap-2">
+          <span>💳</span> ¿Cómo se aplican las Promociones?
+        </h3>
+        <div class="space-y-2.5 text-xs leading-relaxed">
+          <div class="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/50">
+            <strong class="text-emerald-950 font-bold block mb-0.5">🔹 Cuenta DNI (-20% reintegro):</strong>
+            <span>Aplica el reintegro de Banco Provincia sobre comercios físicos de cercanía y supermercados locales (<strong>Golópolis, Actual y Día%</strong>). Mercado Libre no aplica por ser un marketplace online.</span>
+          </div>
+          <div class="p-2.5 rounded-xl border border-red-200 bg-red-50/50">
+            <strong class="text-red-950 font-bold block mb-0.5">🔹 Club Día% (-15% exclusivo):</strong>
+            <span>Aplica el descuento para socios del programa Club Día sobre los productos de <strong>Día%</strong>. Si activás ambas opciones (Club Día + Cuenta DNI), ¡se acumulan! (15% en caja + 20% de reintegro bancario al pagar).</span>
+          </div>
+          <div class="p-2.5 rounded-xl border border-amber-200 bg-amber-50/50">
+            <strong class="text-amber-950 font-bold block mb-0.5">🔹 Meli Full (Online / Envíos):</strong>
+            <span>Activa o desactiva la columna de <strong>Mercado Libre</strong>. Si lo desactivás, la app compara exclusivamente entre los supermercados locales de Las Flores (Golópolis, Actual y Día%).</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Compartir App por WhatsApp -->
+      <div class="bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-2xl p-4 shadow-sm text-center">
+        <h3 class="font-black text-sm mb-1.5 flex items-center justify-center gap-1.5">
+          <span>📲</span> ¿Te sirve el comparador?
+        </h3>
+        <p class="text-xs text-emerald-100 mb-3 leading-relaxed">
+          Compartí la aplicación con tus familiares y amigos de Las Flores para que todos puedan encontrar los mejores precios y ahorrar.
+        </p>
+        <button onclick="shareAppWhatsApp()" class="inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#20ba59] active:scale-95 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer">
+          <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+            <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.599 2.66-.697c.974.53 1.764.811 2.8.811 3.181 0 5.768-2.587 5.768-5.766 0-3.18-2.587-5.766-5.768-5.766zm9.969 5.766c0 5.48-4.455 9.935-9.969 9.935-1.745 0-3.385-.45-4.821-1.238l-5.21 1.365 1.393-5.086c-.911-1.503-1.431-3.266-1.431-5.146 0-5.48 4.455-9.935 9.969-9.935 5.514 0 9.969 4.455 9.969 9.935z"/>
+          </svg>
+          <span>Compartir App por WhatsApp</span>
+        </button>
+      </div>
+
       <!-- Instalación PWA en Celular -->
-      <div class="bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-2xl p-4 shadow-sm">
+      <div class="bg-white text-slate-800 rounded-2xl p-4 border border-slate-200 shadow-sm">
         <h3 class="font-black text-sm mb-1 flex items-center gap-1.5">
           <span>📲</span> Instalar como App en tu Celular
         </h3>
