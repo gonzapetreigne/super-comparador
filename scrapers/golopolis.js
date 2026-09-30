@@ -76,20 +76,6 @@ export async function searchGolopolis(searchTerm) {
     const catalog = loadGolopolisCatalog();
     const catalogResults = searchInCatalog(catalog, searchTerm);
 
-    // If running in local environment (Argentine residential IP), optionally attempt live query
-    if (!process.env.VERCEL) {
-      try {
-        const liveResults = await fetchGolopolisLive(searchTerm, 2000);
-        if (liveResults && liveResults.length > 0) {
-          return liveResults;
-        }
-      } catch (e) {
-        // Fallback to catalog
-      }
-    }
-
-    // In Vercel or cloud (or if live returned 0 / timed out):
-    // Return high-accuracy catalog results instantly
     if (catalogResults.length > 0) {
       return catalogResults;
     }

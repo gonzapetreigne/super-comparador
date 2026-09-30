@@ -95,6 +95,9 @@ export async function updateGolopolisCatalog() {
           title = `ACEITE ${title}`;
         }
 
+        const availNum = p.availables !== undefined ? parseInt(p.availables, 10) : (p.stock !== undefined ? parseInt(p.stock, 10) : 1);
+        const isAvailable = (availNum > 0 || p.state_id === '1' || p.state_id === 1 || p.enabled === 1 || p.enabled === '1') && price > 0;
+
         const formatted = {
           id: id,
           store: 'Golópolis',
@@ -109,7 +112,7 @@ export async function updateGolopolisCatalog() {
           promotionText: discount ? 'Ofertas del día' : null,
           ean: ean,
           image: imageUrl,
-          available: (p.enabled === 1 || p.enabled === '1') && price > 0,
+          available: isAvailable,
           url: `https://golopolis.com.ar/app/?action=products&search=${encodeURIComponent(p.name || title)}`
         };
 

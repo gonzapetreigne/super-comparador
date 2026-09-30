@@ -41,6 +41,20 @@ function extractQuantity(title) {
     if (pVal > 1 && pVal <= 48) multiplier = pVal;
   }
 
+  // Fractions: 1/2 kg, 1/4 kg, 1/2 litro
+  if (/\b(?:1\/2|medio)\s*(?:kg|kgr|kilo|kilos)\b/i.test(str)) {
+    const val = 500 * multiplier;
+    return { value: val, unit: 'g', standardUnit: 'kg', standardRatio: (0.5 * multiplier), isPack: multiplier > 1, multiplier };
+  }
+  if (/\b(?:1\/4|cuarto)\s*(?:kg|kgr|kilo|kilos)\b/i.test(str)) {
+    const val = 250 * multiplier;
+    return { value: val, unit: 'g', standardUnit: 'kg', standardRatio: (0.25 * multiplier), isPack: multiplier > 1, multiplier };
+  }
+  if (/\b(?:1\/2|medio)\s*(?:l|lt|litro|litros)\b/i.test(str)) {
+    const val = 500 * multiplier;
+    return { value: val, unit: 'ml', standardUnit: 'l', standardRatio: (0.5 * multiplier), isPack: multiplier > 1, multiplier };
+  }
+
   // Match liters (e.g. 1.5l, 1l, 500ml, 750 cc)
   const mlMatch = str.match(/(\d+(?:\.\d+)?)\s*(?:ml|cc)\b/);
   if (mlMatch) {
@@ -63,7 +77,8 @@ function extractQuantity(title) {
 
   const gMatch = str.match(/(\d+(?:\.\d+)?)\s*(?:g|gr|grs|gramos)\b/);
   if (gMatch) {
-    const val = parseFloat(gMatch[1]) * multiplier;
+    const rawVal = parseFloat(gMatch[1]);
+    const val = rawVal * multiplier;
     return { value: val, unit: 'g', standardUnit: 'kg', standardRatio: val / 1000, isPack: multiplier > 1, multiplier };
   }
 
@@ -80,6 +95,37 @@ function extractQuantity(title) {
   }
 
   return null;
+}
+
+function formatQuantityBadge(qty) {
+  if (!qty) return null;
+  if (qty.isPack && qty.multiplier > 1) {
+    if (qty.unit === 'kg') return `Pack x${qty.multiplier} (${Math.round((qty.value / qty.multiplier) * 10) / 10} kg)`;
+    if (qty.unit === 'g') return `Pack x${qty.multiplier} (${Math.round(qty.value / qty.multiplier)} g)`;
+    return `Pack x${qty.multiplier}`;
+  }
+  if (qty.unit === 'kg') {
+    return qty.value === 1 ? '1 kg' : `${qty.value} kg`;
+  }
+  if (qty.unit === 'g') {
+    if (qty.value >= 1000 && qty.value % 1000 === 0) {
+      return `${qty.value / 1000} kg`;
+    }
+    return `${qty.value} g`;
+  }
+  if (qty.unit === 'l') {
+    return qty.value === 1 ? '1 litro' : `${qty.value} L`;
+  }
+  if (qty.unit === 'ml') {
+    if (qty.value >= 1000 && qty.value % 1000 === 0) {
+      return `${qty.value / 1000} litro`;
+    }
+    return `${qty.value} ml`;
+  }
+  if (qty.unit === 'ud') {
+    return `${qty.value} saquitos / ud`;
+  }
+  return `${qty.value} ${qty.unit}`;
 }
 
 // Extract diaper size (RN, P, M, G, XG, XXG, XXXG)
@@ -184,6 +230,14 @@ function matchTwoProducts(p1, p2) {
     if (q1.standardUnit !== q2.standardUnit) return false;
     if (Math.abs(q1.standardRatio - q2.standardRatio) > 0.05) return false;
     if (q1.isPack !== q2.isPack) return false;
+    if (q1.multiplier !== q2.multiplier) return false;
+    qtyMatch = true;
+  } else if ((q1 && !q2) || (!q1 && q2)) {
+    // One product has a specific quantity (e.g. 1kg or 500g) and the other has none:
+    // Only match if exact same valid EAN barcode!
+    if (!p1.ean || !p2.ean || p1.ean !== p2.ean) {
+      return false;
+    }
     qtyMatch = true;
   }
 
@@ -281,6 +335,18 @@ function matchTwoProducts(p1, p2) {
 }
 
 export function matchProducts(golopolisProducts = [], actualProducts = [], diaProducts = [], meliProducts = [], query = '') {
+  // Filter out wholesale multi-packs (e.g. packs of 3, 5, 10 units) from Mercado Libre
+  // unless user specifically searched for bulk/pack
+  const isBulkSearch = /\b(?:pack|packs|combo|combos|caja|cajas|mayorista|bulto|lote)\b/i.test(query);
+  if (!isBulkSearch && Array.isArray(meliProducts)) {
+    meliProducts = meliProducts.filter(p => {
+      const q = extractQuantity(p.title);
+      if (q && q.multiplier >= 3) return false;
+      if (/\b(?:pack\s*x\s*[3-9]|pack\s*x\s*\d{2}|x\s*[3-9]\s*unid|x\s*\d{2}\s*unid|caja\s*x\s*\d+|pack\s*de\s*[3-9])\b/i.test(p.title)) return false;
+      return true;
+    });
+  }
+
   let allProducts = [
     ...golopolisProducts,
     ...actualProducts,
@@ -386,12 +452,43 @@ export function matchProducts(golopolisProducts = [], actualProducts = [], diaPr
 
   // Build unified comparison cards
   let cards = matchedGroups.map(group => {
-    // Pick the most descriptive title & image
+    // Determine overall quantity across all items in group
+    let qty = null;
+    for (const p of group.products) {
+      const q = extractQuantity(p.title);
+      if (q) {
+        qty = q;
+        break;
+      }
+    }
+
     const mainProduct = group.products[0];
-    const title = mainProduct.title;
     const brand = group.products.find(p => p.brand)?.brand || mainProduct.brand || '';
     const image = group.products.find(p => p.image)?.image || '';
-    const qty = extractQuantity(title);
+
+    // Pick cleanest title among products
+    let title = mainProduct.title;
+    const goodTitleProd = group.products.find(p => {
+      const t = (p.title || '').toLowerCase();
+      const b = (brand || '').toLowerCase();
+      return b && t.includes(b) && (t.includes('kg') || t.includes('gr') || t.includes('litro') || t.includes('ml') || t.includes('saquito'));
+    });
+    if (goodTitleProd) {
+      title = goodTitleProd.title;
+    }
+
+    // Clean duplicate quantity mentions (e.g. "x1Kg x1Kg" or "X 1 KG. ... x1Kg")
+    title = title.replace(/\s+x\d+\s*(?:kg|kgr|g|gr|grs|l|ml)\b/gi, '').trim();
+
+    // Clean all-caps titles if necessary
+    if (title === title.toUpperCase() && title.length > 5) {
+      title = title.toLowerCase().replace(/(?:^|\s)\S/g, a => a.toUpperCase());
+    }
+
+    // Ensure brand is present in title
+    if (brand && !title.toLowerCase().includes(brand.toLowerCase())) {
+      title = `${title} ${brand}`.trim();
+    }
 
     // Map store prices
     const prices = {
@@ -463,7 +560,7 @@ export function matchProducts(golopolisProducts = [], actualProducts = [], diaPr
       brand: brand,
       image: image,
       ean: group.ean,
-      quantityInfo: qty ? `${qty.value} ${qty.unit}` : null,
+      quantityInfo: formatQuantityBadge(qty),
       prices: prices,
       storeCount: validEntries.length,
       cheapestStore: cheapestStoreId,

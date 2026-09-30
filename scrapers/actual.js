@@ -74,18 +74,29 @@ async function fetchActualLive(searchTerm) {
     const discount = p.discount ? parseFloat(p.discount) : (originalPrice ? Math.round(((originalPrice - price) / originalPrice) * 100) : null);
 
     let ean = null;
-    if (p.barCode && p.barCode.length >= 7) {
+    if (p.barCode && String(p.barCode).length >= 7) {
       ean = String(p.barCode).trim();
+    } else if (p.alternativo_1 && String(p.alternativo_1).length >= 7) {
+      ean = String(p.alternativo_1).trim();
     } else if (Array.isArray(p.cbarras) && p.cbarras.length > 0) {
-      const valid = p.cbarras.find(c => c.cbarra && c.cbarra.length >= 7);
+      const valid = p.cbarras.find(c => c.cbarra && String(c.cbarra).length >= 7);
       if (valid) ean = String(valid.cbarra).trim();
     }
 
     let imageUrl = '';
-    if (Array.isArray(p.images) && p.images.length > 0 && p.images[0].name) {
+    if (Array.isArray(p.images) && p.images.length > 0 && p.images[0].src) {
+      imageUrl = p.images[0].src;
+    } else if (Array.isArray(p.images) && p.images.length > 0 && p.images[0].name) {
       imageUrl = `https://actualonline.com.ar/api/${p.images[0].name}`;
     } else if (typeof p.images === 'string' && p.images.length > 0) {
       imageUrl = p.images.startsWith('http') ? p.images : `https://actualonline.com.ar/api/${p.images}`;
+    }
+
+    const brand = (p.brand || '').trim();
+    let rawTitle = (p.title || p.name || p.longDescription || '').trim().replace(/\s+/g, ' ');
+    let fullTitle = rawTitle;
+    if (brand && !fullTitle.toLowerCase().includes(brand.toLowerCase())) {
+      fullTitle = `${fullTitle} ${brand}`;
     }
 
     return {
@@ -93,8 +104,8 @@ async function fetchActualLive(searchTerm) {
       store: 'Actual',
       storeId: 'actual',
       branch: 'Las Flores',
-      title: (p.title || '').trim(),
-      brand: (p.brand || '').trim(),
+      title: fullTitle,
+      brand: brand,
       category: (p.category || '').trim(),
       price: Math.round(price * 100) / 100,
       originalPrice: originalPrice ? Math.round(originalPrice * 100) / 100 : null,
@@ -102,7 +113,7 @@ async function fetchActualLive(searchTerm) {
       promotionText: discount && discount > 0 ? `${Math.round(discount)}% OFF` : null,
       ean: ean,
       image: imageUrl,
-      available: (p.stock === undefined || p.stock === null || p.stock > 0),
+      available: (p.stock === undefined || p.stock === null || p.stock > 0 || p.habilitado === 2 || p.habilitado === 1) && price > 0,
       url: 'https://actualonline.com.ar/inicio'
     };
   });
@@ -113,19 +124,6 @@ export async function searchActual(searchTerm) {
     const catalog = loadActualCatalog();
     const catalogResults = searchInCatalog(catalog, searchTerm);
 
-    // If running in local environment, optionally try live API
-    if (!process.env.VERCEL) {
-      try {
-        const liveResults = await fetchActualLive(searchTerm);
-        if (liveResults && liveResults.length > 0) {
-          return liveResults;
-        }
-      } catch (e) {
-        // Fallback seamlessly
-      }
-    }
-
-    // In Vercel or if live returned 0 / timed out:
     if (catalogResults.length > 0) {
       return catalogResults;
     }

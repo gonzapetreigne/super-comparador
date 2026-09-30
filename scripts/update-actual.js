@@ -55,42 +55,63 @@ export async function updateActualCatalog() {
           seenIds.add(id);
 
           const price = typeof p.price === 'number' ? p.price : parseFloat(p.price) || 0;
-          const originalPrice = p.old_price ? parseFloat(p.old_price) : null;
-          const discount = p.discount ? parseFloat(p.discount) : null;
+          const originalPrice = (p.price0 && parseFloat(p.price0) > price)
+            ? parseFloat(p.price0)
+            : (p.old_price ? parseFloat(p.old_price) : null);
+          const discount = p.discount
+            ? parseFloat(p.discount)
+            : (originalPrice ? Math.round(((originalPrice - price) / originalPrice) * 100) : null);
 
+          // Image
           let image = '';
-          if (p.image) {
+          if (Array.isArray(p.images) && p.images.length > 0 && p.images[0].src) {
+            image = p.images[0].src;
+          } else if (p.image) {
             image = p.image.startsWith('http') ? p.image : `https://actualonline.com.ar/${p.image.replace(/^\//, '')}`;
           }
 
+          // Brand
           let brand = (p.brand || '').trim();
-          if (!brand && p.name) {
-            const words = p.name.trim().split(/\s+/);
-            if (words.length > 1 && words[words.length - 1].length > 2) {
-              brand = words[words.length - 1];
-            }
+
+          // Title & measure
+          let rawTitle = (p.title || p.name || p.longDescription || '').trim().replace(/\s+/g, ' ');
+          let fullTitle = rawTitle;
+          if (brand && !fullTitle.toLowerCase().includes(brand.toLowerCase())) {
+            fullTitle = `${fullTitle} ${brand}`;
           }
 
-          const category = (p.category_name || p.category || '').trim();
-          const cleanName = (p.name || '').trim();
+          // Barcode / EAN
+          let ean = null;
+          if (p.barCode && String(p.barCode).length >= 7) {
+            ean = String(p.barCode).trim();
+          } else if (p.alternativo_1 && String(p.alternativo_1).length >= 7) {
+            ean = String(p.alternativo_1).trim();
+          } else if (p.barcode && String(p.barcode).length >= 7) {
+            ean = String(p.barcode).trim();
+          } else if (p.ean && String(p.ean).length >= 7) {
+            ean = String(p.ean).trim();
+          }
+
+          const category = (p.category || p.category_name || p.type || '').trim();
+          const isAvailable = (p.stock === undefined || p.stock === null || p.stock > 0 || p.habilitado === 2 || p.habilitado === 1) && price > 0;
           const urlProd = p.slug
             ? `https://actualonline.com.ar/producto/${p.slug}`
-            : `https://actualonline.com.ar/inicio?search=${encodeURIComponent(cleanName)}`;
+            : `https://actualonline.com.ar/inicio?search=${encodeURIComponent(rawTitle || brand)}`;
 
           allProducts.push({
             id: id,
             store: 'Actual',
             storeId: 'actual',
             branch: 'Las Flores',
-            title: cleanName,
+            title: fullTitle,
             brand: brand,
             category: category,
             price: Math.round(price * 100) / 100,
             originalPrice: originalPrice ? Math.round(originalPrice * 100) / 100 : null,
             discountPercent: discount ? Math.round(discount) : null,
-            ean: p.barcode || p.ean || null,
+            ean: ean,
             image: image,
-            available: p.status === 1 || p.stock > 0,
+            available: isAvailable,
             url: urlProd
           });
         }

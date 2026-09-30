@@ -783,7 +783,7 @@ function renderCards(cards) {
                 <span>🔥</span> Ahorro del ${savingPercent}%
               </span>
             ` : ''}
-            ${card.quantityInfo ? `<span class="text-[10px] text-slate-400 font-medium">${card.quantityInfo}</span>` : ''}
+            ${card.quantityInfo ? `<span class="bg-indigo-50 text-indigo-700 border border-indigo-200/80 font-black text-[10px] px-2 py-0.5 rounded-md shadow-2xs tracking-wide">⚖️ ${card.quantityInfo}</span>` : ''}
           </div>
           <h3 class="text-xs sm:text-sm font-bold text-slate-900 leading-snug line-clamp-2">${card.title}</h3>
         </div>
