@@ -119,12 +119,21 @@ export async function runWeeklyUpdatePipeline(options = {}) {
       const commitMsg = `chore(data): auto-update supermarket catalogs (${formattedDate})`;
       execSync(`git commit -m "${commitMsg}"`, { cwd: projectRoot, stdio: 'inherit' });
       execSync('git push origin main', { cwd: projectRoot, stdio: 'inherit' });
-      console.log('✓ Cambios enviados a GitHub. Vercel iniciará el despliegue automático.');
+      console.log('✓ Cambios enviados a GitHub.');
+
+      // Desplegar directamente en Vercel si CLI está disponible
+      try {
+        console.log('Publicando directamente en Vercel producción...');
+        execSync('npx vercel deploy --prod --yes', { cwd: projectRoot, stdio: 'inherit' });
+        console.log('✓ Despliegue en producción de Vercel completado.');
+      } catch (vErr) {
+        console.warn('ℹ Vercel CLI no desplegó directamente (usando integración Git):', vErr.message);
+      }
     } else {
       console.log('ℹ No se detectaron cambios en los catálogos.');
     }
   } catch (gitErr) {
-    console.warn('⚠ Advertencia al realizar git push:', gitErr.message);
+    console.warn('⚠ Advertencia al realizar publicación:', gitErr.message);
   }
 
   const durationMin = Math.round((Date.now() - startTime) / 60000);

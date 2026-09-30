@@ -44,7 +44,7 @@ function getCatalogInfo() {
 
 // Metadata endpoint
 app.get('/api/info', (req, res) => {
-  res.setHeader('Cache-Control', 'public, max-age=300');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.json(getCatalogInfo());
 });
 
