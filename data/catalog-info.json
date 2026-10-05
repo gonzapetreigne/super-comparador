@@ -1,18 +1,18 @@
 {
-  "lastUpdated": "2026-10-05T07:02:20.355Z",
+  "lastUpdated": "2026-10-05T15:28:26.006Z",
   "formattedDate": "5 de octubre de 2026",
   "displayDate": "05/10/2026",
   "totalProducts": {
-    "actual": 2507,
+    "actual": 2486,
     "golopolis": 4758,
     "mercadolibre": 5191
   },
   "validation": {
     "status": "PASSED",
-    "checkedAt": "2026-10-05T07:02:17.991Z",
+    "checkedAt": "2026-10-05T15:28:22.628Z",
     "newProductsAdded": {
       "actual": 0,
-      "golopolis": 26,
+      "golopolis": 0,
       "mercadolibre": 0
     },
     "liveVerification": {
