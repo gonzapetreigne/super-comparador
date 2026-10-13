@@ -150,13 +150,27 @@ export async function runWeeklyUpdatePipeline(options = {}) {
       execSync('git push origin main', { cwd: projectRoot, stdio: 'inherit' });
       console.log('✓ Cambios enviados a GitHub.');
 
-      // Desplegar directamente en Vercel si CLI está disponible
+      // Desplegar directamente en Vercel si CLI está disponible o token configurado
       try {
         console.log('Publicando directamente en Vercel producción...');
-        execSync('npx vercel deploy --prod --yes', { cwd: projectRoot, stdio: 'inherit' });
+        const vercelToken = process.env.VERCEL_TOKEN;
+        const deployCmd = vercelToken 
+          ? `npx vercel deploy --prod --yes --token="${vercelToken}"` 
+          : 'npx vercel deploy --prod --yes';
+        execSync(deployCmd, { cwd: projectRoot, stdio: 'inherit' });
         console.log('✓ Despliegue en producción de Vercel completado.');
       } catch (vErr) {
-        console.warn('ℹ Vercel CLI no desplegó directamente (usando integración Git):', vErr.message);
+        console.warn('ℹ Vercel CLI no desplegó directamente:', vErr.message);
+      }
+
+      if (process.env.VERCEL_DEPLOY_HOOK) {
+        try {
+          console.log('Disparando Vercel Deploy Hook...');
+          await fetch(process.env.VERCEL_DEPLOY_HOOK, { method: 'POST' });
+          console.log('✓ Vercel Deploy Hook disparado con éxito.');
+        } catch (hErr) {
+          console.warn('Advertencia en Vercel Deploy Hook:', hErr.message);
+        }
       }
     } else {
       console.log('ℹ No se detectaron cambios en los catálogos.');

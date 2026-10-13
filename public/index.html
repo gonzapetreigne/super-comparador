@@ -164,7 +164,7 @@
         <div class="flex items-center gap-1.5 font-medium">
           <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
           <span>Última actualización de precios:</span>
-          <strong id="headerLastUpdateDate" class="text-white font-black tracking-wide">30 de septiembre de 2026</strong>
+          <strong id="headerLastUpdateDate" class="text-white font-black tracking-wide">12 de octubre de 2026</strong>
         </div>
         <span class="text-[10px] text-cyan-300/70 font-semibold hidden sm:inline">Precios verificados en sucursal</span>
       </div>
@@ -569,7 +569,7 @@
 
         <div class="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800">
           <span>Última corroboración:</span>
-          <span id="auditLastDate" class="text-cyan-200 font-bold">30 de septiembre de 2026</span>
+          <span id="auditLastDate" class="text-cyan-200 font-bold">12 de octubre de 2026</span>
         </div>
       </div>
 
@@ -961,15 +961,15 @@
   </nav>
 
   <!-- App Script with cache-busting -->
-  <script src="/app.js?v=2.7.0"></script>
+  <script src="/app.js?v=2.8.0"></script>
   <script>
     // Register PWA service worker with auto-update
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js?v=7')
+        navigator.serviceWorker.register('/sw.js?v=8')
           .then(reg => {
             reg.update();
-            console.log('SW registrado y actualizado a v7');
+            console.log('SW registrado y actualizado a v8');
           })
           .catch(err => console.log('Fallo registro SW:', err));
       });

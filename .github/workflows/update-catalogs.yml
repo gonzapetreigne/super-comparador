@@ -32,4 +32,9 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Ejecutar actualización semanal (sin Mercado Libre)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: team_OgI8qACI2G4BF7lU6oj0BIlY
+          VERCEL_PROJECT_ID: prj_YEeJ5g7LabLKZfhSF1HhUT7tBxZg
+          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
         run: node scripts/update-all.js --skip-meli
